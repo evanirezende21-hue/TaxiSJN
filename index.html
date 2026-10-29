@@ -303,8 +303,8 @@
     </header>
 
     <div style="margin-bottom: 16px;">
-      <h3 style="color: #ffc107; font-size: 18px; margin-bottom: 4px;">Motoristas Cadastrados</h3>
-      <p style="color: #aaa; font-size: 13px;">Gerencie o saldo de taxas e permissões dos motoristas.</p>
+      <h3 style="color: #ffc107; font-size: 18px; margin-bottom: 4px;">taxisjn_motoristas Cadastrados</h3>
+      <p style="color: #aaa; font-size: 13px;">Gerencie o saldo de taxas e permissões dos taxisjn_motoristas.</p>
     </div>
 
     <div id="admin-drivers-list"></div>
@@ -629,7 +629,7 @@
     }
 
     function carregarListaAdmin() {
-      db.ref('motoristas').on('value', (snapshot) => {
+      db.ref('taxisjn_motoristas').on('value', (snapshot) => {
         const data = snapshot.val() || {};
         const container = document.getElementById('admin-drivers-list');
         container.innerHTML = '';
@@ -672,14 +672,14 @@
 
     function quitarSaldoMotorista(keyPlate) {
       if (confirm(`Deseja dar baixa e zerar o saldo do motorista (${keyPlate})?`)) {
-        db.ref('motoristas/' + keyPlate).update({ saldoDevedor: 0 });
+        db.ref('taxisjn_motoristas/' + keyPlate).update({ saldoDevedor: 0 });
       }
     }
 
     function alternarBloqueioMotorista(keyPlate, bloquear) {
       const acao = bloquear ? 'bloquear/suspender' : 'liberar';
       if (confirm(`Tem certeza que deseja ${acao} este motorista?`)) {
-        db.ref('motoristas/' + keyPlate).update({ bloqueado: bloquear });
+        db.ref('taxisjn_motoristas/' + keyPlate).update({ bloqueado: bloquear });
       }
     }
 
