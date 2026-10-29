@@ -721,7 +721,7 @@
       }
     }
 
-    // MAPA DO PASSAGEIRO COM MARCADOR VERDE LIMPO (SEM BALÃO) E ROTA URBANA
+    // MAPA DO PASSAGEIRO COM MARCADORES LIMPOS (SEM BALÕES AUTOMÁTICOS) E ROTA URBANA
     function initPassengerMap() {
       if (!passengerMap) {
         passengerMap = L.map('passenger-map', { 
@@ -744,7 +744,7 @@
       }
       passengerMap.invalidateSize();
 
-      // Cria apenas o marcador verde sem abrir o balão de texto
+      // Cria apenas o marcador verde sem abrir balão de texto
       if (!pUserMarker) {
         pUserMarker = L.marker(origem, { icon: greenIcon }).addTo(passengerMap);
       }
@@ -769,10 +769,11 @@
       const lng = e.latlng.lng;
       destino = [lat, lng];
 
+      // Cria apenas o marcador vermelho sem abrir o balão de texto ("Destino Selecionado")
       if (pDestMarker) {
         pDestMarker.setLatLng(destino);
       } else {
-        pDestMarker = L.marker(destino, { icon: redIcon }).addTo(passengerMap).bindPopup("Destino Selecionado").openPopup();
+        pDestMarker = L.marker(destino, { icon: redIcon }).addTo(passengerMap);
       }
 
       calcularRotaEValores();
