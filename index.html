@@ -381,7 +381,6 @@
       popupAnchor: [0, -18]
     });
 
-    // FUNÇÃO DE LOGOUT / SAIR ADICIONADA
     async function sairDaConta() {
       try {
         await auth.signOut();
@@ -722,6 +721,7 @@
       }
     }
 
+    // MAPA DO PASSAGEIRO ATUALIZADO COM GPS E CLIQUE DE DESTINO
     function initPassengerMap() {
       if (!passengerMap) {
         passengerMap = L.map('passenger-map', { 
@@ -738,8 +738,78 @@
         });
 
         googleSat.addTo(passengerMap);
+
+        // Ativa o clique no mapa para escolher o destino
+        passengerMap.on('click', onPassengerMapClick);
       }
       passengerMap.invalidateSize();
+
+      // Pede a localização GPS real do telemóvel do cliente
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          origem = [lat, lng];
+          
+          passengerMap.setView(origem, 17);
+
+          if (pUserMarker) {
+            pUserMarker.setLatLng(origem);
+          } else {
+            pUserMarker = L.marker(origem, { icon: greenIcon }).addTo(passengerMap).bindPopup("Você está aqui").openPopup();
+          }
+        }, (error) => {
+          console.warn("Erro ao obter GPS, usando padrão:", error);
+          if (!pUserMarker) {
+            pUserMarker = L.marker(origem, { icon: greenIcon }).addTo(passengerMap);
+          }
+        }, { enableHighAccuracy: true, timeout: 10000 });
+      } else {
+        if (!pUserMarker) {
+          pUserMarker = L.marker(origem, { icon: greenIcon }).addTo(passengerMap);
+        }
+      }
+    }
+
+    function onPassengerMapClick(e) {
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+      destino = [lat, lng];
+
+      if (pDestMarker) {
+        pDestMarker.setLatLng(destino);
+      } else {
+        pDestMarker = L.marker(destino, { icon: redIcon }).addTo(passengerMap).bindPopup("Destino Selecionado").openPopup();
+      }
+
+      calcularRotaEValores();
+    }
+
+    function calcularRotaEValores() {
+      if (!origem || !destino) return;
+      
+      const R = 6371; 
+      const dLat = (destino[0] - origem[0]) * Math.PI / 180;
+      const dLon = (destino[1] - origem[1]) * Math.PI / 180;
+      const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(origem[0] * Math.PI / 180) * Math.cos(destino[0] * Math.PI / 180) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      distanciaKm = R * c;
+
+      valorEstimado = TAXA_MINIMA + (distanciaKm * PRECO_POR_KM);
+      if (valorEstimado < TAXA_MINIMA) valorEstimado = TAXA_MINIMA;
+
+      document.getElementById('distance-text').innerText = `Distância: ${distanciaKm.toFixed(1)} km`;
+      document.getElementById('price-text').innerText = `R$ ${valorEstimado.toFixed(2).replace('.', ',')}`;
+      document.getElementById('ride-details').style.display = 'block';
+
+      if (pRouteLine) {
+        passengerMap.removeLayer(pRouteLine);
+      }
+      pRouteLine = L.polyline([origem, destino], { color: '#ffc107', weight: 5, opacity: 0.8 }).addTo(passengerMap);
+      passengerMap.fitBounds(pRouteLine.getBounds(), { padding: [50, 50] });
     }
   </script>
 </body>
