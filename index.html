@@ -29,8 +29,8 @@
 
     .form-group { text-align: left; margin-bottom: 14px; }
     .form-group label { display: block; font-size: 12px; color: #aaa; margin-bottom: 6px; }
-    .form-group input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #333; color: #fff; font-size: 14px; outline: none; }
-    .form-group input:focus { border-color: #ffc107; }
+    .form-group input, .form-group select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #333; color: #fff; font-size: 14px; outline: none; }
+    .form-group input:focus, .form-group select:focus { border-color: #ffc107; }
 
     header { 
       position: absolute; 
@@ -207,6 +207,15 @@
           <input type="text" id="user-plate" placeholder="Ex: ABC-1234" />
         </div>
 
+        <!-- SELETOR DE TIPO DE VEÍCULO (CARRO OU MOTO) -->
+        <div class="form-group" id="group-vehicle" style="display: none;">
+          <label>Tipo de Veículo</label>
+          <select id="user-vehicle-type">
+            <option value="carro">Carro (Táxi)</option>
+            <option value="moto">Moto (Mototáxi)</option>
+          </select>
+        </div>
+
         <div class="form-group" id="group-admin-pass" style="display: none;">
           <label>Senha de Administrador</label>
           <input type="password" id="admin-password" placeholder="Digite a senha admin" />
@@ -366,7 +375,6 @@
     let dRouteLayerGroup = null;
     let driverFirstCenter = false;
 
-    // Camadas de mapas oficiais do Google (Satélite vs Ruas/Padrão)
     let passengerSatLayer, passengerStreetLayer, passengerIsSat = true;
     let driverSatLayer, driverStreetLayer, driverIsSat = true;
 
@@ -385,14 +393,20 @@
     const greenIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png', iconSize: [25, 41], iconAnchor: [12, 41] });
     const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', iconSize: [25, 41], iconAnchor: [12, 41] });
 
+    // ÍCONES DE CARRO E MOTO EM SVG PERSONALIZADOS
     const carSvg = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%23ffc107" stroke="%23000000" stroke-width="3"/><path d="M18 36 L22 24 L42 24 L46 36 Z" fill="%23222222"/><rect x="16" y="34" width="32" height="10" rx="3" fill="%23222222"/><circle cx="22" cy="44" r="6" fill="%23111"/><circle cx="42" cy="44" r="6" fill="%23111"/><path d="M24 24 L28 18 L36 18 L40 24 Z" fill="%23444"/></svg>`;
+    
+    const motoSvg = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%23ffc107" stroke="%23000000" stroke-width="3"/><path d="M20 38 L30 26 L44 32" stroke="%23222" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20" cy="44" r="6" fill="%23111"/><circle cx="44" cy="44" r="6" fill="%23111"/><path d="M30 26 L36 20 L42 26" stroke="%23222" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
 
-    const carIcon = L.icon({
-      iconUrl: carSvg,
-      iconSize: [36, 36],
-      iconAnchor: [18, 18],
-      popupAnchor: [0, -18]
-    });
+    function getDriverIcon(tipo) {
+      const urlIcon = (tipo === 'moto') ? motoSvg : carSvg;
+      return L.icon({
+        iconUrl: urlIcon,
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
+        popupAnchor: [0, -18]
+      });
+    }
 
     async function sairDaConta() {
       try {
@@ -521,6 +535,7 @@
       document.getElementById('group-name').style.display = newRole === 'admin' ? 'none' : 'block';
       document.getElementById('group-phone').style.display = newRole === 'passageiro' ? 'block' : 'none';
       document.getElementById('group-plate').style.display = newRole === 'motorista' ? 'block' : 'none';
+      document.getElementById('group-vehicle').style.display = newRole === 'motorista' ? 'block' : 'none';
       document.getElementById('group-admin-pass').style.display = newRole === 'admin' ? 'block' : 'none';
       document.getElementById('google-btn-container').style.display = newRole === 'admin' ? 'none' : 'block';
     }
@@ -533,14 +548,21 @@
         let savedName = localStorage.getItem('sjn_name') || user.displayName || 'Usuário';
         let savedPhone = localStorage.getItem('sjn_phone') || user.phoneNumber || user.email || 'Google User';
         let savedPlate = localStorage.getItem('sjn_plate') || '';
+        let savedVehicle = localStorage.getItem('sjn_vehicle') || 'carro';
 
         if (savedRole === 'motorista' && user.uid) {
           try {
             const snap = await db.ref('taxisjn_usuarios/' + user.uid).once('value');
             const userData = snap.val();
-            if (userData && userData.placa) {
-              savedPlate = userData.placa;
-              localStorage.setItem('sjn_plate', savedPlate);
+            if (userData) {
+              if (userData.placa) {
+                savedPlate = userData.placa;
+                localStorage.setItem('sjn_plate', savedPlate);
+              }
+              if (userData.tipoVeiculo) {
+                savedVehicle = userData.tipoVeiculo;
+                localStorage.setItem('sjn_vehicle', savedVehicle);
+              }
             }
           } catch (e) {
             console.error("Erro ao buscar dados do usuário:", e);
@@ -552,13 +574,14 @@
           return;
         }
 
-        entrarNoAppComDados(savedName, savedPhone, savedPlate);
+        entrarNoAppComDados(savedName, savedPhone, savedPlate, savedVehicle);
       }
     });
 
     async function entrarComGoogle() {
       let plateInput = document.getElementById('user-plate').value.trim();
       let nameInput = document.getElementById('user-name').value.trim();
+      let vehicleInput = document.getElementById('user-vehicle-type').value;
       localStorage.setItem('sjn_role', currentRole);
 
       const provider = new firebase.auth.GoogleAuthProvider();
@@ -573,19 +596,22 @@
 
           if (userData && userData.placa) {
             plateInput = userData.placa;
+            vehicleInput = userData.tipoVeiculo || 'carro';
           } else if (plateInput) {
             await userRef.set({
               nome: user.displayName || nameInput,
               email: user.email,
               placa: plateInput,
+              tipoVeiculo: vehicleInput,
               role: 'motorista'
             });
           } else {
-            alert('Motorista: Por favor, digite a Placa do seu táxi para concluir o primeiro cadastro.');
+            alert('Motorista: Por favor, digite a Placa do seu táxi/moto para concluir o cadastro.');
             return;
           }
 
           localStorage.setItem('sjn_plate', plateInput);
+          localStorage.setItem('sjn_vehicle', vehicleInput);
         }
 
         if (nameInput) localStorage.setItem('sjn_name', nameInput);
@@ -619,6 +645,7 @@
       const name = document.getElementById('user-name').value.trim();
       const phone = document.getElementById('user-phone').value.trim();
       const plate = document.getElementById('user-plate').value.trim();
+      const vehicle = document.getElementById('user-vehicle-type').value;
 
       if (!name || (currentRole === 'passageiro' && !phone) || (currentRole === 'motorista' && !plate)) {
         alert('Por favor, preencha todos os campos.');
@@ -628,6 +655,7 @@
       localStorage.setItem('sjn_name', name);
       localStorage.setItem('sjn_phone', phone);
       localStorage.setItem('sjn_plate', plate);
+      localStorage.setItem('sjn_vehicle', vehicle);
       localStorage.setItem('sjn_role', currentRole);
 
       try {
@@ -636,10 +664,11 @@
           db.ref('taxisjn_usuarios/' + cred.user.uid).set({
             nome: name,
             placa: plate,
+            tipoVeiculo: vehicle,
             role: 'motorista'
           });
         }
-        entrarNoAppComDados(name, phone, plate);
+        entrarNoAppComDados(name, phone, plate, vehicle);
       } catch (error) {
         console.error("Erro no login anônimo:", error);
         alert("Erro de autenticação no Firebase.");
@@ -707,8 +736,8 @@
       }
     }
 
-    function entrarNoAppComDados(name, phone, plate) {
-      currentUser = { name, phone, plate, role: currentRole };
+    function entrarNoAppComDados(name, phone, plate, vehicle) {
+      currentUser = { name, phone, plate, vehicle: vehicle || 'carro', role: currentRole };
 
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
 
@@ -721,7 +750,8 @@
         }, 150);
 
       } else if (currentRole === 'motorista') {
-        document.getElementById('driver-badge').innerText = `${name} - Placa: ${plate}`;
+        const veiculoTexto = vehicle === 'moto' ? 'Mototáxi' : 'Táxi';
+        document.getElementById('driver-badge').innerText = `${name} (${veiculoTexto} - ${plate})`;
         document.getElementById('driver-screen').classList.add('active');
         
         manterTelaAcesa();
@@ -732,7 +762,6 @@
       }
     }
 
-    // ALTERNAR CAMADA NO MAPA DO PASSAGEIRO (GOOGLE MAPS PÁDRÃO / SATÉLITE)
     function alternarCamadaPassageiro() {
       if (!passengerMap) return;
       if (passengerIsSat) {
@@ -748,7 +777,6 @@
       }
     }
 
-    // ALTERNAR CAMADA NO MAPA DO MOTORISTA (GOOGLE MAPS PÁDRÃO / SATÉLITE)
     function alternarCamadaMotorista() {
       if (!driverMap) return;
       if (driverIsSat) {
@@ -829,10 +857,14 @@
         Object.keys(drivers).forEach(key => {
           const d = drivers[key];
           if (now - (d.timestamp || 0) < 180000) {
+            const tipoVeiculo = d.tipoVeiculo || 'carro';
+            const iconeDinamico = getDriverIcon(tipoVeiculo);
+
             if (driverMarkersOnPassengerMap[key]) {
               driverMarkersOnPassengerMap[key].setLatLng([d.lat, d.lng]);
+              driverMarkersOnPassengerMap[key].setIcon(iconeDinamico);
             } else {
-              driverMarkersOnPassengerMap[key] = L.marker([d.lat, d.lng], { icon: carIcon }).addTo(passengerMap);
+              driverMarkersOnPassengerMap[key] = L.marker([d.lat, d.lng], { icon: iconeDinamico }).addTo(passengerMap);
             }
           } else {
             if (driverMarkersOnPassengerMap[key]) {
@@ -946,7 +978,7 @@
         
         const statusBox = document.getElementById('status-box');
         statusBox.style.display = 'block';
-        statusBox.innerText = "⏳ Procurando taxista próximo...";
+        statusBox.innerText = "⏳ Procurando motorista próximo...";
 
         escutarStatusCorridaPassageiro(activeRideId);
       }).catch((error) => {
@@ -970,7 +1002,7 @@
         if (ride.status === 'aceita') {
           statusBox.style.display = 'block';
           statusBox.innerHTML = `
-            🚕 <b style="color: #d35400;">Taxista a caminho!</b><br>
+            🚕 <b style="color: #d35400;">Motorista a caminho!</b><br>
             <b>Motorista:</b> ${ride.motoristaNome}<br>
             <b>Placa:</b> ${ride.motoristaPlaca}<br>
             <div style="font-size: 18px; color: #2e7d32; margin-top: 6px;"><b>Valor da Corrida: R$ ${valorFormatado},00</b></div>
@@ -1032,8 +1064,11 @@
       }
       driverMap.invalidateSize();
 
+      const meuIcone = getDriverIcon(currentUser.vehicle);
       if (!dSelfMarker) {
-        dSelfMarker = L.marker(driverPos, { icon: carIcon }).addTo(driverMap);
+        dSelfMarker = L.marker(driverPos, { icon: meuIcone }).addTo(driverMap);
+      } else {
+        dSelfMarker.setIcon(meuIcone);
       }
 
       if (navigator.geolocation) {
@@ -1056,6 +1091,7 @@
               lat: lat,
               lng: lng,
               nome: currentUser.name,
+              tipoVeiculo: currentUser.vehicle,
               timestamp: Date.now()
             });
           }
