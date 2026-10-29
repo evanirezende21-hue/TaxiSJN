@@ -203,16 +203,19 @@
         </div>
 
         <div class="form-group" id="group-plate" style="display: none;">
-          <label>Placa do Táxi</label>
+          <label>Placa do Táxi / Moto</label>
           <input type="text" id="user-plate" placeholder="Ex: ABC-1234" />
         </div>
 
-        <!-- SELETOR DE TIPO DE VEÍCULO (CARRO OU MOTO) -->
-        <div class="form-group" id="group-vehicle" style="display: none;">
-          <label>Tipo de Veículo</label>
-          <select id="user-vehicle-type">
-            <option value="carro">Carro (Táxi)</option>
-            <option value="moto">Moto (Mototáxi)</option>
+        <!-- ESCOLHA DO ÍCONE DO VEÍCULO -->
+        <div class="form-group" id="group-icon-style" style="display: none;">
+          <label>Escolher Ícone do Veículo no Mapa</label>
+          <select id="user-icon-choice">
+            <option value="taxi">🟡 Táxi Amarelo Clássico</option>
+            <option value="sedan">🚗 Carro Sedan Moderno</option>
+            <option value="suv">🚙 SUV / Carrão</option>
+            <option value="moto">🏍️ Moto / Mototáxi</option>
+            <option value="pin">📍 Marcador Clássico</option>
           </select>
         </div>
 
@@ -393,13 +396,17 @@
     const greenIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png', iconSize: [25, 41], iconAnchor: [12, 41] });
     const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', iconSize: [25, 41], iconAnchor: [12, 41] });
 
-    // ÍCONES DE CARRO E MOTO EM SVG PERSONALIZADOS
-    const carSvg = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%23ffc107" stroke="%23000000" stroke-width="3"/><path d="M18 36 L22 24 L42 24 L46 36 Z" fill="%23222222"/><rect x="16" y="34" width="32" height="10" rx="3" fill="%23222222"/><circle cx="22" cy="44" r="6" fill="%23111"/><circle cx="42" cy="44" r="6" fill="%23111"/><path d="M24 24 L28 18 L36 18 L40 24 Z" fill="%23444"/></svg>`;
-    
-    const motoSvg = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%23ffc107" stroke="%23000000" stroke-width="3"/><path d="M20 38 L30 26 L44 32" stroke="%23222" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20" cy="44" r="6" fill="%23111"/><circle cx="44" cy="44" r="6" fill="%23111"/><path d="M30 26 L36 20 L42 26" stroke="%23222" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`;
+    // OPÇÕES DE ÍCONES PERSONALIZADOS EM SVG
+    const iconesVeiculos = {
+      taxi: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%23ffc107" stroke="%23000000" stroke-width="3"/><path d="M18 36 L22 24 L42 24 L46 36 Z" fill="%23222222"/><rect x="16" y="34" width="32" height="10" rx="3" fill="%23222222"/><circle cx="22" cy="44" r="6" fill="%23111"/><circle cx="42" cy="44" r="6" fill="%23111"/><path d="M24 24 L28 18 L36 18 L40 24 Z" fill="%23444"/></svg>`,
+      sedan: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%232196f3" stroke="%23ffffff" stroke-width="3"/><path d="M16 38 L20 25 L44 25 L48 38 Z" fill="%23ffffff"/><rect x="14" y="36" width="36" height="10" rx="3" fill="%23ffffff"/><circle cx="21" cy="46" r="5" fill="%23111"/><circle cx="43" cy="46" r="5" fill="%23111"/></svg>`,
+      suv: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%234caf50" stroke="%23ffffff" stroke-width="3"/><rect x="16" y="22" width="32" height="22" rx="4" fill="%23ffffff"/><circle cx="21" cy="46" r="6" fill="%23111"/><circle cx="43" cy="46" r="6" fill="%23111"/></svg>`,
+      moto: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%23ff9800" stroke="%23ffffff" stroke-width="3"/><path d="M20 38 L30 26 L44 32" stroke="%23ffffff" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20" cy="44" r="6" fill="%23111"/><circle cx="44" cy="44" r="6" fill="%23111"/><path d="M30 26 L36 20 L42 26" stroke="%23ffffff" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`,
+      pin: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 64 64"><path d="M32 2 C18 2 8 12 8 26 C8 42 32 62 32 62 C32 62 56 42 56 26 C56 12 46 2 32 2 Z" fill="%23e91e63" stroke="%23fff" stroke-width="3"/><circle cx="32" cy="24" r="8" fill="%23fff"/></svg>`
+    };
 
-    function getDriverIcon(tipo) {
-      const urlIcon = (tipo === 'moto') ? motoSvg : carSvg;
+    function getDriverIcon(escolha) {
+      const urlIcon = iconesVeiculos[escolha] || iconesVeiculos['taxi'];
       return L.icon({
         iconUrl: urlIcon,
         iconSize: [36, 36],
@@ -535,7 +542,7 @@
       document.getElementById('group-name').style.display = newRole === 'admin' ? 'none' : 'block';
       document.getElementById('group-phone').style.display = newRole === 'passageiro' ? 'block' : 'none';
       document.getElementById('group-plate').style.display = newRole === 'motorista' ? 'block' : 'none';
-      document.getElementById('group-vehicle').style.display = newRole === 'motorista' ? 'block' : 'none';
+      document.getElementById('group-icon-style').style.display = newRole === 'motorista' ? 'block' : 'none';
       document.getElementById('group-admin-pass').style.display = newRole === 'admin' ? 'block' : 'none';
       document.getElementById('google-btn-container').style.display = newRole === 'admin' ? 'none' : 'block';
     }
@@ -548,7 +555,7 @@
         let savedName = localStorage.getItem('sjn_name') || user.displayName || 'Usuário';
         let savedPhone = localStorage.getItem('sjn_phone') || user.phoneNumber || user.email || 'Google User';
         let savedPlate = localStorage.getItem('sjn_plate') || '';
-        let savedVehicle = localStorage.getItem('sjn_vehicle') || 'carro';
+        let savedIconStyle = localStorage.getItem('sjn_icon_style') || 'taxi';
 
         if (savedRole === 'motorista' && user.uid) {
           try {
@@ -559,9 +566,9 @@
                 savedPlate = userData.placa;
                 localStorage.setItem('sjn_plate', savedPlate);
               }
-              if (userData.tipoVeiculo) {
-                savedVehicle = userData.tipoVeiculo;
-                localStorage.setItem('sjn_vehicle', savedVehicle);
+              if (userData.iconeVeiculo) {
+                savedIconStyle = userData.iconeVeiculo;
+                localStorage.setItem('sjn_icon_style', savedIconStyle);
               }
             }
           } catch (e) {
@@ -574,14 +581,14 @@
           return;
         }
 
-        entrarNoAppComDados(savedName, savedPhone, savedPlate, savedVehicle);
+        entrarNoAppComDados(savedName, savedPhone, savedPlate, savedIconStyle);
       }
     });
 
     async function entrarComGoogle() {
       let plateInput = document.getElementById('user-plate').value.trim();
       let nameInput = document.getElementById('user-name').value.trim();
-      let vehicleInput = document.getElementById('user-vehicle-type').value;
+      let iconInput = document.getElementById('user-icon-choice').value;
       localStorage.setItem('sjn_role', currentRole);
 
       const provider = new firebase.auth.GoogleAuthProvider();
@@ -596,22 +603,22 @@
 
           if (userData && userData.placa) {
             plateInput = userData.placa;
-            vehicleInput = userData.tipoVeiculo || 'carro';
+            iconInput = userData.iconeVeiculo || 'taxi';
           } else if (plateInput) {
             await userRef.set({
               nome: user.displayName || nameInput,
               email: user.email,
               placa: plateInput,
-              tipoVeiculo: vehicleInput,
+              iconeVeiculo: iconInput,
               role: 'motorista'
             });
           } else {
-            alert('Motorista: Por favor, digite a Placa do seu táxi/moto para concluir o cadastro.');
+            alert('Motorista: Por favor, digite a Placa do seu veículo para concluir o cadastro.');
             return;
           }
 
           localStorage.setItem('sjn_plate', plateInput);
-          localStorage.setItem('sjn_vehicle', vehicleInput);
+          localStorage.setItem('sjn_icon_style', iconInput);
         }
 
         if (nameInput) localStorage.setItem('sjn_name', nameInput);
@@ -645,7 +652,7 @@
       const name = document.getElementById('user-name').value.trim();
       const phone = document.getElementById('user-phone').value.trim();
       const plate = document.getElementById('user-plate').value.trim();
-      const vehicle = document.getElementById('user-vehicle-type').value;
+      const iconStyle = document.getElementById('user-icon-choice').value;
 
       if (!name || (currentRole === 'passageiro' && !phone) || (currentRole === 'motorista' && !plate)) {
         alert('Por favor, preencha todos os campos.');
@@ -655,7 +662,7 @@
       localStorage.setItem('sjn_name', name);
       localStorage.setItem('sjn_phone', phone);
       localStorage.setItem('sjn_plate', plate);
-      localStorage.setItem('sjn_vehicle', vehicle);
+      localStorage.setItem('sjn_icon_style', iconStyle);
       localStorage.setItem('sjn_role', currentRole);
 
       try {
@@ -664,11 +671,11 @@
           db.ref('taxisjn_usuarios/' + cred.user.uid).set({
             nome: name,
             placa: plate,
-            tipoVeiculo: vehicle,
+            iconeVeiculo: iconStyle,
             role: 'motorista'
           });
         }
-        entrarNoAppComDados(name, phone, plate, vehicle);
+        entrarNoAppComDados(name, phone, plate, iconStyle);
       } catch (error) {
         console.error("Erro no login anônimo:", error);
         alert("Erro de autenticação no Firebase.");
@@ -736,8 +743,8 @@
       }
     }
 
-    function entrarNoAppComDados(name, phone, plate, vehicle) {
-      currentUser = { name, phone, plate, vehicle: vehicle || 'carro', role: currentRole };
+    function entrarNoAppComDados(name, phone, plate, iconStyle) {
+      currentUser = { name, phone, plate, iconStyle: iconStyle || 'taxi', role: currentRole };
 
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
 
@@ -750,8 +757,7 @@
         }, 150);
 
       } else if (currentRole === 'motorista') {
-        const veiculoTexto = vehicle === 'moto' ? 'Mototáxi' : 'Táxi';
-        document.getElementById('driver-badge').innerText = `${name} (${veiculoTexto} - ${plate})`;
+        document.getElementById('driver-badge').innerText = `${name} - Placa: ${plate}`;
         document.getElementById('driver-screen').classList.add('active');
         
         manterTelaAcesa();
@@ -857,8 +863,8 @@
         Object.keys(drivers).forEach(key => {
           const d = drivers[key];
           if (now - (d.timestamp || 0) < 180000) {
-            const tipoVeiculo = d.tipoVeiculo || 'carro';
-            const iconeDinamico = getDriverIcon(tipoVeiculo);
+            const iconeEscolhido = d.iconeVeiculo || 'taxi';
+            const iconeDinamico = getDriverIcon(iconeEscolhido);
 
             if (driverMarkersOnPassengerMap[key]) {
               driverMarkersOnPassengerMap[key].setLatLng([d.lat, d.lng]);
@@ -1064,7 +1070,7 @@
       }
       driverMap.invalidateSize();
 
-      const meuIcone = getDriverIcon(currentUser.vehicle);
+      const meuIcone = getDriverIcon(currentUser.iconStyle);
       if (!dSelfMarker) {
         dSelfMarker = L.marker(driverPos, { icon: meuIcone }).addTo(driverMap);
       } else {
@@ -1091,7 +1097,7 @@
               lat: lat,
               lng: lng,
               nome: currentUser.name,
-              tipoVeiculo: currentUser.vehicle,
+              iconeVeiculo: currentUser.iconStyle,
               timestamp: Date.now()
             });
           }
