@@ -237,7 +237,8 @@
             <div class="info-text" id="distance-text">Distância: 0.0 km</div>
             <div class="price-tag" id="price-text">R$ 0,00</div>
           </div>
-          <button class="btn-primary" id="btn-request" onclick="solicitarCorrida()" style="width: auto; padding: 12px 20px;">Chamar Moto</button>
+          <!-- BOTÃO ALTERADO PARA CHAMAR TÁXI -->
+          <button class="btn-primary" id="btn-request" onclick="solicitarCorrida()" style="width: auto; padding: 12px 20px;">Chamar Táxi</button>
         </div>
       </div>
     </div>
@@ -303,8 +304,8 @@
     </header>
 
     <div style="margin-bottom: 16px;">
-      <h3 style="color: #ffc107; font-size: 18px; margin-bottom: 4px;">taxisjn_motoristas Cadastrados</h3>
-      <p style="color: #aaa; font-size: 13px;">Gerencie o saldo de taxas e permissões dos taxisjn_motoristas.</p>
+      <h3 style="color: #ffc107; font-size: 18px; margin-bottom: 4px;">TaxiSJN Motoristas Cadastrados</h3>
+      <p style="color: #aaa; font-size: 13px;">Gerencie o saldo de taxas e permissões dos motoristas.</p>
     </div>
 
     <div id="admin-drivers-list"></div>
@@ -721,7 +722,6 @@
       }
     }
 
-    // MAPA DO PASSAGEIRO COM MARCADORES LIMPOS E ROTA URBANA
     function initPassengerMap() {
       if (!passengerMap) {
         passengerMap = L.map('passenger-map', { 
@@ -738,18 +738,14 @@
         });
 
         googleSat.addTo(passengerMap);
-
-        // Ativa o clique no mapa para escolher o destino
         passengerMap.on('click', onPassengerMapClick);
       }
       passengerMap.invalidateSize();
 
-      // Cria apenas o marcador verde limpo (sem balão)
       if (!pUserMarker) {
         pUserMarker = L.marker(origem, { icon: greenIcon }).addTo(passengerMap);
       }
 
-      // Atualiza em segundo plano com o GPS real do telemóvel
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((position) => {
           const lat = position.coords.latitude;
@@ -769,7 +765,6 @@
       const lng = e.latlng.lng;
       destino = [lat, lng];
 
-      // Cria apenas o marcador vermelho limpo (sem balão)
       if (pDestMarker) {
         pDestMarker.setLatLng(destino);
       } else {
@@ -807,7 +802,7 @@
           return;
         }
       } catch (e) {
-        console.warn("Servidor de rotas OSRM indisponível, gerando traçado urbano alternativo:", e);
+        console.warn("Servidor de rotas OSRM indisponível, gerando traçado alternativo:", e);
       }
 
       const latMid = (origem[0] + destino[0]) / 2 + 0.0008;
@@ -833,6 +828,38 @@
       }
       pRouteLine = L.polyline(pontosRuas, { color: '#ffc107', weight: 6, opacity: 0.85, smoothFactor: 1 }).addTo(passengerMap);
       passengerMap.fitBounds(pRouteLine.getBounds(), { padding: [50, 50] });
+    }
+
+    // Função de solicitação de corrida associada ao botão Chamar Táxi
+    function solicitarCorrida() {
+      if (!destino) {
+        alert("Por favor, selecione um destino no mapa ou pesquise um endereço.");
+        return;
+      }
+
+      const rideData = {
+        passageiroNome: currentUser ? currentUser.name : 'Passageiro',
+        passageiroTel: currentUser ? currentUser.phone : '',
+        origemLat: origem[0],
+        origemLng: origem[1],
+        destinoLat: destino[0],
+        destinoLng: destino[1],
+        valor: valorEstimado,
+        distancia: distanciaKm,
+        status: 'pendente',
+        timestamp: Date.now()
+      };
+
+      const newRideRef = db.ref('taxisjn_corridas').push();
+      newRideRef.set(rideData).then(() => {
+        activeRideId = newRideRef.key;
+        document.getElementById('status-box').style.display = 'block';
+        document.getElementById('status-box').innerText = "⏳ Procurando motorista próximo...";
+        document.getElementById('btn-request').disabled = true;
+      }).catch((error) => {
+        console.error("Erro ao solicitar corrida:", error);
+        alert("Erro ao enviar a solicitação. Tente novamente.");
+      });
     }
   </script>
 </body>
