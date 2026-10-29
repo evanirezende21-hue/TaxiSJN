@@ -341,7 +341,7 @@
     let pUserMarker, pDestMarker, pRouteLine;
     let dSelfMarker, dOrigMarker, dDestMarker;
     let dRouteLayerGroup = null;
-    let driverFirstCenter = false; // Controle do zoom inicial do motorista
+    let driverFirstCenter = false;
 
     let driverMarkersOnPassengerMap = {};
     let passengerMarkersOnDriverMap = {};
@@ -705,7 +705,6 @@
       }
     }
 
-    // INICIALIZAÇÃO DO MAPA DO PASSAGEIRO
     function initPassengerMap() {
       if (!passengerMap) {
         passengerMap = L.map('passenger-map', { 
@@ -943,7 +942,6 @@
       });
     }
 
-    // MAPA MOTORISTA COM CONTROLE DE ZOOM LIVRE
     function initDriverMapBase() {
       if (!driverMap) {
         driverMap = L.map('driver-map', { 
@@ -972,7 +970,6 @@
           const lng = position.coords.longitude;
           driverPos = [lat, lng];
           
-          // CENTRALIZA APENAS NA PRIMEIRA VEZ. DEPOIS USA PANTO PARA NÃO REDEFINIR O ZOOM DO MOTORISTA
           if (!driverFirstCenter) {
             driverMap.setView(driverPos, 17);
             driverFirstCenter = true;
@@ -1035,14 +1032,24 @@
         const data = snapshot.val() || {};
         isDriverBlocked = data.bloqueado === true;
 
+        const emptyBox = document.getElementById('driver-empty-box');
+        const reqCard = document.getElementById('driver-request-card');
+        const pickupCard = document.getElementById('driver-pickup-card');
+        const activeCard = document.getElementById('driver-active-card');
+        const blockedCard = document.getElementById('driver-blocked-card');
+
         if (isDriverBlocked) {
-          document.getElementById('driver-empty-box').style.display = 'none';
-          document.getElementById('driver-blocked-card').style.display = 'block';
+          emptyBox.style.display = 'none';
+          reqCard.style.display = 'none';
+          pickupCard.style.display = 'none';
+          activeCard.style.display = 'none';
+          blockedCard.style.display = 'block';
           document.getElementById('driver-blocked-text').innerText = `Sua conta foi suspensa pelo administrador. Entre em contato para regularizar seu acesso.`;
+          limparRotaMotorista();
         } else {
-          document.getElementById('driver-blocked-card').style.display = 'none';
+          blockedCard.style.display = 'none';
           if (!activeRideId) {
-            document.getElementById('driver-empty-box').style.display = 'block';
+            emptyBox.style.display = 'block';
           }
         }
       });
@@ -1050,7 +1057,21 @@
 
     function escutarCorridasParaMotorista() {
       db.ref('taxisjn_corridas').on('value', (snapshot) => {
-        if (isDriverBlocked) return;
+        const emptyBox = document.getElementById('driver-empty-box');
+        const reqCard = document.getElementById('driver-request-card');
+        const pickupCard = document.getElementById('driver-pickup-card');
+        const activeCard = document.getElementById('driver-active-card');
+
+        // BLOQUEIO RIGOROSO: SE O MOTORISTA ESTIVER BLOQUEADO, NADA É EXIBIDO
+        if (isDriverBlocked) {
+          emptyBox.style.display = 'none';
+          reqCard.style.display = 'none';
+          pickupCard.style.display = 'none';
+          activeCard.style.display = 'none';
+          limparRotaMotorista();
+          return;
+        }
+
         const rides = snapshot.val() || {};
         let foundPending = null;
         let activeForMe = null;
@@ -1064,11 +1085,6 @@
             activeForMe = { id, ...r };
           }
         });
-
-        const emptyBox = document.getElementById('driver-empty-box');
-        const reqCard = document.getElementById('driver-request-card');
-        const pickupCard = document.getElementById('driver-pickup-card');
-        const activeCard = document.getElementById('driver-active-card');
 
         if (activeForMe) {
           activeRideId = activeForMe.id;
@@ -1191,6 +1207,10 @@
     }
 
     function confirmarAceiteCorrida() {
+      if (isDriverBlocked) {
+        alert("Sua conta está suspensa pelo administrador.");
+        return;
+      }
       if (!pendingRide) return;
       const rideId = pendingRide.id;
 
