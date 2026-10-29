@@ -64,6 +64,23 @@
       background: #e5e3df;
     }
 
+    /* BOTÃO FLUTUANTE PARA TROCAR CAMADA DO MAPA */
+    .map-layer-btn {
+      position: absolute;
+      top: 75px;
+      right: 16px;
+      background: #212121;
+      color: #ffc107;
+      border: 2px solid #ffc107;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 12px;
+      cursor: pointer;
+      z-index: 999;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+
     .bottom-card { position: absolute; bottom: 20px; left: 16px; right: 16px; background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); z-index: 1000; }
     .price-tag { font-size: 26px; font-weight: bold; color: #2e7d32; }
     .info-text { font-size: 14px; color: #555; margin-bottom: 8px; }
@@ -207,6 +224,7 @@
     </header>
 
     <div id="passenger-map" class="map-container"></div>
+    <button class="map-layer-btn" id="passenger-layer-btn" onclick="alternarCamadaPassageiro()">🗺️ Mapa Ruas</button>
 
     <div class="bottom-card">
       <div class="search-box" id="passenger-search-box">
@@ -241,6 +259,7 @@
     </header>
 
     <div id="driver-map" class="map-container"></div>
+    <button class="map-layer-btn" id="driver-layer-btn" onclick="alternarCamadaMotorista()">🗺️ Mapa Ruas</button>
 
     <div id="driver-empty-box" class="bottom-card" style="text-align: center; color: #666; font-weight: bold;">
       🔎 Aguardando solicitações de corrida...
@@ -342,6 +361,10 @@
     let dSelfMarker, dOrigMarker, dDestMarker;
     let dRouteLayerGroup = null;
     let driverFirstCenter = false;
+
+    // Camadas de mapas (Satélite vs Ruas)
+    let passengerSatLayer, passengerStreetLayer, passengerIsSat = true;
+    let driverSatLayer, driverStreetLayer, driverIsSat = true;
 
     let driverMarkersOnPassengerMap = {};
     let passengerMarkersOnDriverMap = {};
@@ -705,6 +728,38 @@
       }
     }
 
+    // ALTERNAR CAMADA NO MAPA DO PASSAGEIRO
+    function alternarCamadaPassageiro() {
+      if (!passengerMap) return;
+      if (passengerIsSat) {
+        passengerMap.removeLayer(passengerSatLayer);
+        passengerStreetLayer.addTo(passengerMap);
+        passengerIsSat = false;
+        document.getElementById('passenger-layer-btn').innerText = "🛰️ Mapa Satélite";
+      } else {
+        passengerMap.removeLayer(passengerStreetLayer);
+        passengerSatLayer.addTo(passengerMap);
+        passengerIsSat = true;
+        document.getElementById('passenger-layer-btn').innerText = "🗺️ Mapa Ruas";
+      }
+    }
+
+    // ALTERNAR CAMADA NO MAPA DO MOTORISTA
+    function alternarCamadaMotorista() {
+      if (!driverMap) return;
+      if (driverIsSat) {
+        driverMap.removeLayer(driverSatLayer);
+        driverStreetLayer.addTo(driverMap);
+        driverIsSat = false;
+        document.getElementById('driver-layer-btn').innerText = "🛰️ Mapa Satélite";
+      } else {
+        driverMap.removeLayer(driverStreetLayer);
+        driverSatLayer.addTo(driverMap);
+        driverIsSat = true;
+        document.getElementById('driver-layer-btn').innerText = "🗺️ Mapa Ruas";
+      }
+    }
+
     function initPassengerMap() {
       if (!passengerMap) {
         passengerMap = L.map('passenger-map', { 
@@ -714,13 +769,18 @@
           rotateControl: false
         }).setView(origem, 16);
         
-        const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        passengerSatLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
           maxZoom: 20,
           subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
           attribution: '&copy; Google Satellite'
         });
 
-        googleSat.addTo(passengerMap);
+        passengerStreetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap'
+        });
+
+        passengerSatLayer.addTo(passengerMap);
         passengerMap.on('click', onPassengerMapClick);
       }
       passengerMap.invalidateSize();
@@ -951,12 +1011,18 @@
           rotateControl: false
         }).setView(driverPos, 16);
         
-        const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        driverSatLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
           maxZoom: 20,
           subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
           attribution: '&copy; Google Satellite'
         });
-        googleSat.addTo(driverMap);
+
+        driverStreetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap'
+        });
+
+        driverSatLayer.addTo(driverMap);
       }
       driverMap.invalidateSize();
 
@@ -1062,7 +1128,6 @@
         const pickupCard = document.getElementById('driver-pickup-card');
         const activeCard = document.getElementById('driver-active-card');
 
-        // BLOQUEIO RIGOROSO: SE O MOTORISTA ESTIVER BLOQUEADO, NADA É EXIBIDO
         if (isDriverBlocked) {
           emptyBox.style.display = 'none';
           reqCard.style.display = 'none';
