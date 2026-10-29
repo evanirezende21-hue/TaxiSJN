@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>Moto Táxi SJN - Firebase</title>
+  <title>TaxiSJN</title>
 
   <!-- TAG PWA ADICIONADA PARA RECONHECIMENTO DO MANIFESTO -->
   <link rel="manifest" href="manifest.json">
@@ -166,7 +166,7 @@
   <!-- LOGIN / CADASTRO -->
   <div id="auth-screen" class="screen active">
     <div class="auth-card">
-      <h2 style="color: #ffc107; margin-bottom: 16px;">Moto Táxi SJN</h2>
+      <h2 style="color: #ffc107; margin-bottom: 16px;">TaxiSJN</h2>
       
       <div class="auth-tabs">
         <button class="tab-btn active" id="tab-passenger" onclick="setRole('passageiro')">Passageiro</button>
@@ -721,7 +721,7 @@
       }
     }
 
-    // MAPA DO PASSAGEIRO COM MARCADORES LIMPOS (SEM BALÕES AUTOMÁTICOS) E ROTA URBANA
+    // MAPA DO PASSAGEIRO COM MARCADORES LIMPOS E ROTA URBANA
     function initPassengerMap() {
       if (!passengerMap) {
         passengerMap = L.map('passenger-map', { 
@@ -744,7 +744,7 @@
       }
       passengerMap.invalidateSize();
 
-      // Cria apenas o marcador verde sem abrir balão de texto
+      // Cria apenas o marcador verde limpo (sem balão)
       if (!pUserMarker) {
         pUserMarker = L.marker(origem, { icon: greenIcon }).addTo(passengerMap);
       }
@@ -769,7 +769,7 @@
       const lng = e.latlng.lng;
       destino = [lat, lng];
 
-      // Cria apenas o marcador vermelho sem abrir o balão de texto ("Destino Selecionado")
+      // Cria apenas o marcador vermelho limpo (sem balão)
       if (pDestMarker) {
         pDestMarker.setLatLng(destino);
       } else {
