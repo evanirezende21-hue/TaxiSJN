@@ -512,7 +512,7 @@
 
         if (savedRole === 'motorista' && user.uid) {
           try {
-            const snap = await db.ref('usuarios/' + user.uid).once('value');
+            const snap = await db.ref('taxisjn_usuarios/' + user.uid).once('value');
             const userData = snap.val();
             if (userData && userData.placa) {
               savedPlate = userData.placa;
@@ -543,7 +543,7 @@
         const user = result.user;
 
         if (currentRole === 'motorista') {
-          const userRef = db.ref('usuarios/' + user.uid);
+          const userRef = db.ref('taxisjn_usuarios/' + user.uid);
           const snap = await userRef.once('value');
           const userData = snap.val();
 
@@ -609,7 +609,7 @@
       try {
         const cred = await auth.signInAnonymously();
         if (currentRole === 'motorista' && cred.user) {
-          db.ref('usuarios/' + cred.user.uid).set({
+          db.ref('taxisjn_usuarios/' + cred.user.uid).set({
             nome: name,
             placa: plate,
             role: 'motorista'
