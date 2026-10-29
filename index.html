@@ -381,6 +381,18 @@
       popupAnchor: [0, -18]
     });
 
+    // FUNÇÃO DE LOGOUT / SAIR ADICIONADA
+    async function sairDaConta() {
+      try {
+        await auth.signOut();
+      } catch (e) {
+        console.error("Erro ao encerrar sessão:", e);
+      }
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.reload();
+    }
+
     function iniciarReconhecimentoVoz() {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
@@ -703,7 +715,9 @@
         manterTelaAcesa();
 
         setTimeout(() => {
-          initDriverMapBase();
+          if (typeof initDriverMapBase === 'function') {
+            initDriverMapBase();
+          }
         }, 150);
       }
     }
