@@ -379,6 +379,7 @@
     let dSelfMarker, dOrigMarker, dDestMarker;
     let dRouteLayerGroup = null;
     let driverFirstCenter = false;
+    let previousDriverPos = null;
 
     let passengerSatLayer, passengerStreetLayer, passengerIsSat = true;
     let driverSatLayer, driverStreetLayer, driverIsSat = true;
@@ -414,6 +415,20 @@
         iconAnchor: [18, 18],
         popupAnchor: [0, -18]
       });
+    }
+
+    // CALCULAR ÂNGULO/DIREÇÃO DE MOVIMENTO (BEARING)
+    function calcularAnguloMovimento(p1, p2) {
+      const lat1 = p1[0] * Math.PI / 180;
+      const lon1 = p1[1] * Math.PI / 180;
+      const lat2 = p2[0] * Math.PI / 180;
+      const lon2 = p2[1] * Math.PI / 180;
+
+      const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
+      const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
+      const brng = Math.atan2(y, x) * 180 / Math.PI;
+
+      return (brng + 360) % 360;
     }
 
     async function sairDaConta() {
@@ -833,7 +848,6 @@
         pUserMarker = L.marker(origem, { icon: greenIcon }).addTo(passengerMap);
       }
 
-      // ATIVAÇÃO IMEDIATA E CONTÍNUA DO GPS NO CELULAR DO PASSAGEIRO
       if (navigator.geolocation) {
         if (passengerGpsWatchId) {
           navigator.geolocation.clearWatch(passengerGpsWatchId);
@@ -1097,8 +1111,25 @@
         navigator.geolocation.watchPosition((position) => {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
+          const heading = position.coords.heading; // DIREÇÃO DO GPS SE DISPONÍVEL
           driverPos = [lat, lng];
           
+          let bearingCalculado = 0;
+
+          // CALCULA O ÂNGULO DE MOVIMENTO COM BASE NA POSIÇÃO ANTERIOR
+          if (previousDriverPos) {
+            const dist = L.latLng(driverPos).distanceTo(L.latLng(previousDriverPos));
+            if (dist > 2) { // ROTA APENAS SE HOUVER DESLOCAMENTO RELEVANTE (> 2 METROS)
+              bearingCalculado = heading !== null && !isNaN(heading) ? heading : calcularAnguloMovimento(previousDriverPos, driverPos);
+              
+              // ROTACIONA O MAPA NA DIREÇÃO DE MOVIMENTO (MODO GPS/NAVEGAÇÃO)
+              if (driverMap.setBearing) {
+                driverMap.setBearing(bearingCalculado);
+              }
+            }
+          }
+          previousDriverPos = driverPos;
+
           if (!driverFirstCenter) {
             driverMap.setView(driverPos, 17);
             driverFirstCenter = true;
@@ -1112,8 +1143,8 @@
             db.ref('taxisjn_motoristas_loc/' + currentUser.plate.replace(/\s+/g, '_')).set({
               lat: lat,
               lng: lng,
-              nome: currentUser.name,
               iconeVeiculo: currentUser.iconStyle,
+              heading: bearingCalculado,
               timestamp: Date.now()
             });
           }
@@ -1123,7 +1154,7 @@
           }
         }, (error) => {
           console.warn("GPS motorista erro:", error);
-        }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 5000 });
+        }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 });
       }
 
       verificarStatusMotorista();
