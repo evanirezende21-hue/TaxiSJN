@@ -261,7 +261,7 @@
 
     <div class="bottom-card" id="driver-blocked-card" style="display: none; text-align: center; background: #ffebee; border: 1px solid #c62828;">
       <div style="color: #c62828; font-weight: bold; font-size: 16px; margin-bottom: 6px;">🚫 Acesso Suspenso</div>
-      <div class="info-text" id="driver-blocked-text" style="color: #b71c1c;">Sua conta foi suspensa pelo administrador. Entre em contato para mais detalhes.</div>
+      <div class="info-text" id="driver-blocked-text" style="color: #b71c1c;">Sua conta foi suspensa pelo administrador. Entre em contato para regularizar seu acesso.</div>
     </div>
 
     <div class="bottom-card" id="driver-request-card" style="display: none;">
@@ -352,13 +352,9 @@
     let passengerRideListenerRef = null;
 
     let passengerMap, driverMap;
-    let pUserMarker, pDestMarker, pRouteLine, pDriverToPassengerLine;
+    let pUserMarker, pDestMarker, pRouteLine;
     let dSelfMarker, dOrigMarker, dDestMarker;
     let dRouteLayerGroup = null;
-
-    let driverMarkers = {}; 
-    let passengerMarkers = {};
-    let otherDriverMarkers = {};
 
     let origem = [-21.5431, -43.0108]; 
     let driverPos = [-21.5431, -43.0108]; 
@@ -796,7 +792,8 @@
           if (pRouteLine) {
             passengerMap.removeLayer(pRouteLine);
           }
-          pRouteLine = L.polyline(coords, { color: '#ffc107', weight: 6, opacity: 0.85 }).addTo(passengerMap);
+          // LINHA PONTILHADA PASSAGEIRO
+          pRouteLine = L.polyline(coords, { color: '#ffc107', weight: 6, opacity: 0.85, dashArray: '10, 10' }).addTo(passengerMap);
           passengerMap.fitBounds(pRouteLine.getBounds(), { padding: [50, 50] });
           return;
         }
@@ -825,7 +822,7 @@
       if (pRouteLine) {
         passengerMap.removeLayer(pRouteLine);
       }
-      pRouteLine = L.polyline(pontosRuas, { color: '#ffc107', weight: 6, opacity: 0.85, smoothFactor: 1 }).addTo(passengerMap);
+      pRouteLine = L.polyline(pontosRuas, { color: '#ffc107', weight: 6, opacity: 0.85, smoothFactor: 1, dashArray: '10, 10' }).addTo(passengerMap);
       passengerMap.fitBounds(pRouteLine.getBounds(), { padding: [50, 50] });
     }
 
@@ -866,7 +863,6 @@
       });
     }
 
-    // ESCUTA EM TEMPO REAL PARA O PASSAGEIRO EXIBINDO O VALOR DA CORRIDA
     function escutarStatusCorridaPassageiro(rideId) {
       if (passengerRideListenerRef) passengerRideListenerRef.off();
 
@@ -908,7 +904,7 @@
       });
     }
 
-    // INICIALIZAÇÃO DO MAPA DO MOTORISTA COM CARRO E ROTA OSRM
+    // MAPA MOTORISTA DADOS
     function initDriverMapBase() {
       if (!driverMap) {
         driverMap = L.map('driver-map', { 
@@ -947,6 +943,11 @@
               timestamp: Date.now()
             });
           }
+
+          // ATUALIZA A ROTA APAGANDO CONFORME O MOTORISTA AVANÇA ATÉ O PASSAGEIRO
+          if (pendingRide && (pendingRide.status === 'aceita' || pendingRide.status === 'em_andamento')) {
+            desenharRotaDinamicaMotorista(driverPos, [pendingRide.origemLat, pendingRide.origemLng]);
+          }
         }, (error) => {
           console.warn("GPS motorista erro:", error);
         }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 5000 });
@@ -956,7 +957,6 @@
       escutarCorridasParaMotorista();
     }
 
-    // VERIFICAÇÃO DE STATUS EXCLUSIVA PELO BLOQUEIO MANUAL DO ADMIN
     function verificarStatusMotorista() {
       if (!currentUser || !currentUser.plate) return;
       const plateKey = currentUser.plate.replace(/\s+/g, '_');
@@ -1020,7 +1020,7 @@
             document.getElementById('driver-active-passenger-info').innerHTML = `<b>Passageiro:</b> ${activeForMe.passageiroNome} (${activeForMe.passageiroTel || 'Sem tel'})`;
           }
 
-          desenharRotaMotorista(activeForMe);
+          desenharRotaDinamicaMotorista(driverPos, [activeForMe.origemLat, activeForMe.origemLng]);
 
         } else if (foundPending && !activeRideId) {
           pendingRide = foundPending;
@@ -1078,42 +1078,39 @@
         console.warn("OSRM falhou no motorista, usando linha padrão");
       }
 
-      const line = L.polyline(coords, { color: '#ffc107', weight: 6, opacity: 0.85 });
+      // LINHA PONTILHADA SOLICITAÇÃO
+      const line = L.polyline(coords, { color: '#ffc107', weight: 6, opacity: 0.85, dashArray: '10, 10' });
       dRouteLayerGroup.addLayer(line);
       driverMap.fitBounds(line.getBounds(), { padding: [50, 50] });
     }
 
-    async function desenharRotaMotorista(ride) {
+    // DESENHA E ENCURTA A ROTA PONTILHADA CONFORME O MOTORISTA SE MOVIMENTA ATÉ O PASSAGEIRO
+    async function desenharRotaDinamicaMotorista(posAtualMotorista, posPassageiro) {
       if (!driverMap) return;
-      const orig = [ride.origemLat, ride.origemLng];
-      const dest = [ride.destinoLat, ride.destinoLng];
 
       if (dOrigMarker) driverMap.removeLayer(dOrigMarker);
-      if (dDestMarker) driverMap.removeLayer(dDestMarker);
-
-      dOrigMarker = L.marker(orig, { icon: greenIcon }).addTo(driverMap);
-      dDestMarker = L.marker(dest, { icon: redIcon }).addTo(driverMap);
+      dOrigMarker = L.marker(posPassageiro, { icon: greenIcon }).addTo(driverMap);
 
       if (!dRouteLayerGroup) {
         dRouteLayerGroup = L.layerGroup().addTo(driverMap);
       }
       dRouteLayerGroup.clearLayers();
 
-      let coords = [orig, dest];
+      let coords = [posAtualMotorista, posPassageiro];
       try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${orig[1]},${orig[0]};${dest[1]},${dest[0]}?overview=full&geometries=geojson`;
+        const url = `https://router.project-osrm.org/route/v1/driving/${posAtualMotorista[1]},${posAtualMotorista[0]};${posPassageiro[1]},${posPassageiro[0]}?overview=full&geometries=geojson`;
         const res = await fetch(url);
         const data = await res.json();
         if (data.routes && data.routes.length > 0) {
           coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
         }
       } catch (e) {
-        console.warn("OSRM falhou no motorista, usando linha padrão");
+        console.warn("OSRM falhou na atualização de rota dinâmica");
       }
 
-      const line = L.polyline(coords, { color: '#27ae60', weight: 6, opacity: 0.85 });
+      // LINHA PONTILHADA VERDE QUE VAI ENCURTANDO ATÉ O PASSAGEIRO
+      const line = L.polyline(coords, { color: '#27ae60', weight: 6, opacity: 0.85, dashArray: '10, 10' });
       dRouteLayerGroup.addLayer(line);
-      driverMap.fitBounds(line.getBounds(), { padding: [50, 50] });
     }
 
     function limparRotaMotorista() {
