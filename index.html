@@ -222,7 +222,7 @@
     <div id="passenger-map" class="map-container"></div>
 
     <div class="bottom-card">
-      <div class="search-box">
+      <div class="search-box" id="passenger-search-box">
         <input type="text" id="destination-input" class="search-input" placeholder="Fale ou digite o endereço..." />
         <button class="btn-mic" id="btn-voice" onclick="iniciarReconhecimentoVoz()" title="Falar Endereço">🎙️</button>
         <button class="btn-search" onclick="buscarEndereçoPorTexto()">Buscar</button>
@@ -349,6 +349,7 @@
     let activeDriverTrackingRef = null;
     let driverStatusRef = null;
     let isDriverBlocked = false;
+    let passengerRideListenerRef = null;
 
     let passengerMap, driverMap;
     let pUserMarker, pDestMarker, pRouteLine, pDriverToPassengerLine;
@@ -372,7 +373,6 @@
     const blueIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png', iconSize: [25, 41], iconAnchor: [12, 41] });
     const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', iconSize: [25, 41], iconAnchor: [12, 41] });
 
-    // ÍCONE DE CARRO PARA O MOTORISTA
     const carSvg = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%23ffc107" stroke="%23000000" stroke-width="3"/><path d="M18 36 L22 24 L42 24 L46 36 Z" fill="%23222222"/><rect x="16" y="34" width="32" height="10" rx="3" fill="%23222222"/><circle cx="22" cy="44" r="6" fill="%23111"/><circle cx="42" cy="44" r="6" fill="%23111"/><path d="M24 24 L28 18 L36 18 L40 24 Z" fill="%23444"/></svg>`;
 
     const carIcon = L.icon({
@@ -851,12 +851,45 @@
       const newRideRef = db.ref('taxisjn_corridas').push();
       newRideRef.set(rideData).then(() => {
         activeRideId = newRideRef.key;
-        document.getElementById('status-box').style.display = 'block';
-        document.getElementById('status-box').innerText = "⏳ Procurando taxista próximo...";
-        document.getElementById('btn-request').disabled = true;
+        document.getElementById('passenger-search-box').style.display = 'none';
+        document.getElementById('instruction-text').style.display = 'none';
+        document.getElementById('ride-details').style.display = 'none';
+        
+        const statusBox = document.getElementById('status-box');
+        statusBox.style.display = 'block';
+        statusBox.innerText = "⏳ Procurando taxista próximo...";
+
+        escutarStatusCorridaPassageiro(activeRideId);
       }).catch((error) => {
         console.error("Erro ao solicitar corrida:", error);
         alert("Erro ao enviar a solicitação. Tente novamente.");
+      });
+    }
+
+    // ESCUTA EM TEMPO REAL PARA O PASSAGEIRO VER QUANDO O TAXISTA ACEITAR
+    function escutarStatusCorridaPassageiro(rideId) {
+      if (passengerRideListenerRef) passengerRideListenerRef.off();
+
+      passengerRideListenerRef = db.ref('taxisjn_corridas/' + rideId);
+      passengerRideListenerRef.on('value', (snapshot) => {
+        const ride = snapshot.val();
+        const statusBox = document.getElementById('status-box');
+
+        if (!ride) return;
+
+        if (ride.status === 'aceita') {
+          statusBox.style.display = 'block';
+          statusBox.innerHTML = `🚕 <b style="color: #d35400;">Taxista a caminho!</b><br>Motorista: ${ride.motoristaNome}<br>Placa: ${ride.motoristaPlaca}`;
+        } else if (ride.status === 'em_andamento') {
+          statusBox.style.display = 'block';
+          statusBox.innerHTML = `✅ <b style="color: #27ae60;">Viagem em andamento</b><br>Motorista: ${ride.motoristaNome} (${ride.motoristaPlaca})`;
+        } else if (ride.status === 'concluida') {
+          statusBox.style.display = 'block';
+          statusBox.innerHTML = `🎉 <b style="color: #27ae60;">Corrida Concluída!</b> Obrigado por viajar com a TaxiSJN.`;
+          setTimeout(() => {
+            window.location.reload();
+          }, 4000);
+        }
       });
     }
 
