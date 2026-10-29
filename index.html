@@ -866,7 +866,7 @@
       });
     }
 
-    // ESCUTA EM TEMPO REAL PARA O PASSAGEIRO VER QUANDO O TAXISTA ACEITAR
+    // ESCUTA EM TEMPO REAL PARA O PASSAGEIRO EXIBINDO O VALOR DA CORRIDA
     function escutarStatusCorridaPassageiro(rideId) {
       if (passengerRideListenerRef) passengerRideListenerRef.off();
 
@@ -877,15 +877,30 @@
 
         if (!ride) return;
 
+        const valorFormatado = (ride.valor || 0).toFixed(2).replace('.', ',');
+
         if (ride.status === 'aceita') {
           statusBox.style.display = 'block';
-          statusBox.innerHTML = `🚕 <b style="color: #d35400;">Taxista a caminho!</b><br>Motorista: ${ride.motoristaNome}<br>Placa: ${ride.motoristaPlaca}`;
+          statusBox.innerHTML = `
+            🚕 <b style="color: #d35400;">Taxista a caminho!</b><br>
+            <b>Motorista:</b> ${ride.motoristaNome}<br>
+            <b>Placa:</b> ${ride.motoristaPlaca}<br>
+            <div style="font-size: 18px; color: #2e7d32; margin-top: 6px;"><b>Valor da Corrida: R$ ${valorFormatado}</b></div>
+          `;
         } else if (ride.status === 'em_andamento') {
           statusBox.style.display = 'block';
-          statusBox.innerHTML = `✅ <b style="color: #27ae60;">Viagem em andamento</b><br>Motorista: ${ride.motoristaNome} (${ride.motoristaPlaca})`;
+          statusBox.innerHTML = `
+            ✅ <b style="color: #27ae60;">Viagem em andamento</b><br>
+            <b>Motorista:</b> ${ride.motoristaNome} (${ride.motoristaPlaca})<br>
+            <div style="font-size: 18px; color: #2e7d32; margin-top: 6px;"><b>Valor da Corrida: R$ ${valorFormatado}</b></div>
+          `;
         } else if (ride.status === 'concluida') {
           statusBox.style.display = 'block';
-          statusBox.innerHTML = `🎉 <b style="color: #27ae60;">Corrida Concluída!</b> Obrigado por viajar com a TaxiSJN.`;
+          statusBox.innerHTML = `
+            🎉 <b style="color: #27ae60;">Corrida Concluída!</b><br>
+            <b>Valor Pago: R$ ${valorFormatado}</b><br>
+            Obrigado por viajar com a TaxiSJN.
+          `;
           setTimeout(() => {
             window.location.reload();
           }, 4000);
@@ -990,184 +1005,3 @@
         const activeCard = document.getElementById('driver-active-card');
 
         if (activeForMe) {
-          activeRideId = activeForMe.id;
-          currentRideStatus = activeForMe.status;
-          pendingRide = activeForMe;
-
-          emptyBox.style.display = 'none';
-          reqCard.style.display = 'none';
-
-          if (activeForMe.status === 'aceita') {
-            pickupCard.style.display = 'block';
-            activeCard.style.display = 'none';
-            document.getElementById('driver-pickup-ride-price').innerText = `R$ ${(activeForMe.valor || 0).toFixed(2).replace('.', ',')}`;
-            document.getElementById('driver-pickup-passenger-info').innerHTML = `<b>Passageiro:</b> ${activeForMe.passageiroNome} (${activeForMe.passageiroTel || 'Sem tel'})`;
-          } else if (activeForMe.status === 'em_andamento') {
-            pickupCard.style.display = 'none';
-            activeCard.style.display = 'block';
-            document.getElementById('driver-active-ride-price').innerText = `R$ ${(activeForMe.valor || 0).toFixed(2).replace('.', ',')}`;
-            document.getElementById('driver-active-passenger-info').innerHTML = `<b>Passageiro:</b> ${activeForMe.passageiroNome} (${activeForMe.passageiroTel || 'Sem tel'})`;
-          }
-
-          desenharRotaMotorista(activeForMe);
-
-        } else if (foundPending && !activeRideId) {
-          pendingRide = foundPending;
-          emptyBox.style.display = 'none';
-          reqCard.style.display = 'block';
-          pickupCard.style.display = 'none';
-          activeCard.style.display = 'none';
-
-          document.getElementById('driver-ride-price').innerText = `R$ ${(foundPending.valor || 0).toFixed(2).replace('.', ',')}`;
-          document.getElementById('driver-passenger-info').innerHTML = `<b>Passageiro:</b> ${foundPending.passageiroNome} (${foundPending.passageiroTel || 'Sem tel'})`;
-
-          if (lastNotifiedRideId !== foundPending.id) {
-            lastNotifiedRideId = foundPending.id;
-            alertarMotoristaComSom();
-          }
-
-          mostrarSolicitacaoNoMapaMotorista(foundPending);
-
-        } else if (!activeRideId) {
-          pendingRide = null;
-          emptyBox.style.display = 'block';
-          reqCard.style.display = 'none';
-          pickupCard.style.display = 'none';
-          activeCard.style.display = 'none';
-          limparRotaMotorista();
-        }
-      });
-    }
-
-    async function mostrarSolicitacaoNoMapaMotorista(ride) {
-      if (!driverMap) return;
-      const orig = [ride.origemLat, ride.origemLng];
-      const dest = [ride.destinoLat, ride.destinoLng];
-
-      if (dOrigMarker) driverMap.removeLayer(dOrigMarker);
-      if (dDestMarker) driverMap.removeLayer(dDestMarker);
-
-      dOrigMarker = L.marker(orig, { icon: greenIcon }).addTo(driverMap);
-      dDestMarker = L.marker(dest, { icon: redIcon }).addTo(driverMap);
-
-      if (!dRouteLayerGroup) {
-        dRouteLayerGroup = L.layerGroup().addTo(driverMap);
-      }
-      dRouteLayerGroup.clearLayers();
-
-      let coords = [orig, dest];
-      try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${orig[1]},${orig[0]};${dest[1]},${dest[0]}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.routes && data.routes.length > 0) {
-          coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-        }
-      } catch (e) {
-        console.warn("OSRM falhou no motorista, usando linha padrão");
-      }
-
-      const line = L.polyline(coords, { color: '#ffc107', weight: 6, opacity: 0.85 });
-      dRouteLayerGroup.addLayer(line);
-      driverMap.fitBounds(line.getBounds(), { padding: [50, 50] });
-    }
-
-    async function desenharRotaMotorista(ride) {
-      if (!driverMap) return;
-      const orig = [ride.origemLat, ride.origemLng];
-      const dest = [ride.destinoLat, ride.destinoLng];
-
-      if (dOrigMarker) driverMap.removeLayer(dOrigMarker);
-      if (dDestMarker) driverMap.removeLayer(dDestMarker);
-
-      dOrigMarker = L.marker(orig, { icon: greenIcon }).addTo(driverMap);
-      dDestMarker = L.marker(dest, { icon: redIcon }).addTo(driverMap);
-
-      if (!dRouteLayerGroup) {
-        dRouteLayerGroup = L.layerGroup().addTo(driverMap);
-      }
-      dRouteLayerGroup.clearLayers();
-
-      let coords = [orig, dest];
-      try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${orig[1]},${orig[0]};${dest[1]},${dest[0]}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.routes && data.routes.length > 0) {
-          coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-        }
-      } catch (e) {
-        console.warn("OSRM falhou no motorista, usando linha padrão");
-      }
-
-      const line = L.polyline(coords, { color: '#27ae60', weight: 6, opacity: 0.85 });
-      dRouteLayerGroup.addLayer(line);
-      driverMap.fitBounds(line.getBounds(), { padding: [50, 50] });
-    }
-
-    function limparRotaMotorista() {
-      if (dOrigMarker) { driverMap.removeLayer(dOrigMarker); dOrigMarker = null; }
-      if (dDestMarker) { driverMap.removeLayer(dDestMarker); dDestMarker = null; }
-      if (dRouteLayerGroup) { dRouteLayerGroup.clearLayers(); }
-    }
-
-    function confirmarAceiteCorrida() {
-      if (!pendingRide) return;
-      const rideId = pendingRide.id;
-
-      db.ref('taxisjn_corridas/' + rideId).update({
-        status: 'aceita',
-        motoristaNome: currentUser.name,
-        motoristaPlaca: currentUser.plate
-      }).then(() => {
-        activeRideId = rideId;
-        document.getElementById('driver-request-card').style.display = 'none';
-        document.getElementById('driver-pickup-card').style.display = 'block';
-      }).catch(err => {
-        console.error("Erro ao aceitar corrida:", err);
-        alert("Erro ao aceitar corrida. Tente novamente.");
-      });
-    }
-
-    function iniciarViagemComPassageiro() {
-      if (!activeRideId) return;
-      db.ref('taxisjn_corridas/' + activeRideId).update({
-        status: 'em_andamento'
-      }).then(() => {
-        document.getElementById('driver-pickup-card').style.display = 'none';
-        document.getElementById('driver-active-card').style.display = 'block';
-      });
-    }
-
-    function finalizarCorrida() {
-      if (!activeRideId) return;
-      const rideId = activeRideId;
-
-      db.ref('taxisjn_corridas/' + rideId).update({
-        status: 'concluida'
-      }).then(() => {
-        const plateKey = currentUser.plate.replace(/\s+/g, '_');
-        const driverRef = db.ref('taxisjn_motoristas/' + plateKey);
-        driverRef.once('value').then(snap => {
-          const data = snap.val() || { nome: currentUser.name, placa: currentUser.plate, saldoDevedor: 0 };
-          const novoSaldo = (data.saldoDevedor || 0) + 1.00;
-          driverRef.update({
-            nome: currentUser.name,
-            placa: currentUser.plate,
-            saldoDevedor: novoSaldo
-          });
-        });
-
-        activeRideId = null;
-        pendingRide = null;
-        currentRideStatus = null;
-        limparRotaMotorista();
-
-        document.getElementById('driver-active-card').style.display = 'none';
-        document.getElementById('driver-empty-box').style.display = 'block';
-        alert("Corrida concluída com sucesso! Taxa de R$ 1,00 adicionada ao seu saldo.");
-      });
-    }
-  </script>
-</body>
-</html>
