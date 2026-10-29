@@ -64,22 +64,26 @@
       background: #e5e3df;
     }
 
-    /* BOTÃO FLUTUANTE PARA TROCAR CAMADA DO MAPA */
+    /* BOTÃO ESTILO GOOGLE MAPS PARA MUDANÇA DE CAMADA */
     .map-layer-btn {
       position: absolute;
-      top: 75px;
+      top: 72px;
       right: 16px;
-      background: #212121;
-      color: #ffc107;
-      border: 2px solid #ffc107;
-      padding: 8px 12px;
+      background: #ffffff;
+      color: #3c4043;
+      border: none;
+      padding: 10px 16px;
       border-radius: 8px;
-      font-weight: bold;
-      font-size: 12px;
+      font-weight: 500;
+      font-size: 13px;
       cursor: pointer;
       z-index: 999;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
+    .map-layer-btn:hover { background: #f8f9fa; }
 
     .bottom-card { position: absolute; bottom: 20px; left: 16px; right: 16px; background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); z-index: 1000; }
     .price-tag { font-size: 26px; font-weight: bold; color: #2e7d32; }
@@ -224,7 +228,7 @@
     </header>
 
     <div id="passenger-map" class="map-container"></div>
-    <button class="map-layer-btn" id="passenger-layer-btn" onclick="alternarCamadaPassageiro()">🗺️ Mapa Ruas</button>
+    <button class="map-layer-btn" id="passenger-layer-btn" onclick="alternarCamadaPassageiro()">🗺️ Padrão</button>
 
     <div class="bottom-card">
       <div class="search-box" id="passenger-search-box">
@@ -259,7 +263,7 @@
     </header>
 
     <div id="driver-map" class="map-container"></div>
-    <button class="map-layer-btn" id="driver-layer-btn" onclick="alternarCamadaMotorista()">🗺️ Mapa Ruas</button>
+    <button class="map-layer-btn" id="driver-layer-btn" onclick="alternarCamadaMotorista()">🗺️ Padrão</button>
 
     <div id="driver-empty-box" class="bottom-card" style="text-align: center; color: #666; font-weight: bold;">
       🔎 Aguardando solicitações de corrida...
@@ -294,7 +298,7 @@
         <span class="price-tag" id="driver-active-ride-price" style="font-size: 20px;">R$ 0,00</span>
       </div>
       <div class="info-text" id="driver-active-passenger-info"><b>Passageiro:</b> --</div>
-      <button class="btn-primary" id="btn-finish-ride" onclick="finalizarCorrida()">CONCLUIR CORRIDA (R$ 1,00 Taxa)</button>
+      <button class="btn-primary" id="btn-finish-ride" onclick="finalizarCorrida()">CONCLUIR CORRIDA (R$ 0,50 Taxa)</button>
     </div>
   </div>
 
@@ -362,7 +366,7 @@
     let dRouteLayerGroup = null;
     let driverFirstCenter = false;
 
-    // Camadas de mapas (Satélite vs Ruas)
+    // Camadas de mapas oficiais do Google (Satélite vs Ruas/Padrão)
     let passengerSatLayer, passengerStreetLayer, passengerIsSat = true;
     let driverSatLayer, driverStreetLayer, driverIsSat = true;
 
@@ -728,35 +732,35 @@
       }
     }
 
-    // ALTERNAR CAMADA NO MAPA DO PASSAGEIRO
+    // ALTERNAR CAMADA NO MAPA DO PASSAGEIRO (GOOGLE MAPS PÁDRÃO / SATÉLITE)
     function alternarCamadaPassageiro() {
       if (!passengerMap) return;
       if (passengerIsSat) {
         passengerMap.removeLayer(passengerSatLayer);
         passengerStreetLayer.addTo(passengerMap);
         passengerIsSat = false;
-        document.getElementById('passenger-layer-btn').innerText = "🛰️ Mapa Satélite";
+        document.getElementById('passenger-layer-btn').innerText = "🛰️ Satélite";
       } else {
         passengerMap.removeLayer(passengerStreetLayer);
         passengerSatLayer.addTo(passengerMap);
         passengerIsSat = true;
-        document.getElementById('passenger-layer-btn').innerText = "🗺️ Mapa Ruas";
+        document.getElementById('passenger-layer-btn').innerText = "🗺️ Padrão";
       }
     }
 
-    // ALTERNAR CAMADA NO MAPA DO MOTORISTA
+    // ALTERNAR CAMADA NO MAPA DO MOTORISTA (GOOGLE MAPS PÁDRÃO / SATÉLITE)
     function alternarCamadaMotorista() {
       if (!driverMap) return;
       if (driverIsSat) {
         driverMap.removeLayer(driverSatLayer);
         driverStreetLayer.addTo(driverMap);
         driverIsSat = false;
-        document.getElementById('driver-layer-btn').innerText = "🛰️ Mapa Satélite";
+        document.getElementById('driver-layer-btn').innerText = "🛰️ Satélite";
       } else {
         driverMap.removeLayer(driverStreetLayer);
         driverSatLayer.addTo(driverMap);
         driverIsSat = true;
-        document.getElementById('driver-layer-btn').innerText = "🗺️ Mapa Ruas";
+        document.getElementById('driver-layer-btn').innerText = "🗺️ Padrão";
       }
     }
 
@@ -775,9 +779,10 @@
           attribution: '&copy; Google Satellite'
         });
 
-        passengerStreetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: '&copy; OpenStreetMap'
+        passengerStreetLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+          maxZoom: 20,
+          subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+          attribution: '&copy; Google Maps'
         });
 
         passengerSatLayer.addTo(passengerMap);
@@ -1017,9 +1022,10 @@
           attribution: '&copy; Google Satellite'
         });
 
-        driverStreetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: '&copy; OpenStreetMap'
+        driverStreetLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+          maxZoom: 20,
+          subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+          attribution: '&copy; Google Maps'
         });
 
         driverSatLayer.addTo(driverMap);
@@ -1314,7 +1320,7 @@
         const driverRef = db.ref('taxisjn_motoristas/' + plateKey);
         driverRef.once('value').then(snap => {
           const data = snap.val() || { nome: currentUser.name, placa: currentUser.plate, saldoDevedor: 0 };
-          const novoSaldo = (data.saldoDevedor || 0) + 1.00;
+          const novoSaldo = (data.saldoDevedor || 0) + 0.50;
           driverRef.update({
             nome: currentUser.name,
             placa: currentUser.plate,
@@ -1329,7 +1335,7 @@
 
         document.getElementById('driver-active-card').style.display = 'none';
         document.getElementById('driver-empty-box').style.display = 'block';
-        alert("Corrida concluída com sucesso! Taxa de R$ 1,00 adicionada ao seu saldo.");
+        alert("Corrida concluída com sucesso! Taxa de R$ 0,50 adicionada ao seu saldo.");
       });
     }
   </script>
