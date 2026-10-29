@@ -721,7 +721,7 @@
       }
     }
 
-    // MAPA DO PASSAGEIRO OTIMIZADO COM MARCADOR IMEDIATO E ROTA URBANA
+    // MAPA DO PASSAGEIRO COM MARCADOR VERDE LIMPO (SEM BALÃO) E ROTA URBANA
     function initPassengerMap() {
       if (!passengerMap) {
         passengerMap = L.map('passenger-map', { 
@@ -744,9 +744,9 @@
       }
       passengerMap.invalidateSize();
 
-      // Cria o marcador verde imediatamente para aparecer logo na tela
+      // Cria apenas o marcador verde sem abrir o balão de texto
       if (!pUserMarker) {
-        pUserMarker = L.marker(origem, { icon: greenIcon }).addTo(passengerMap).bindPopup("Sua Localização").openPopup();
+        pUserMarker = L.marker(origem, { icon: greenIcon }).addTo(passengerMap);
       }
 
       // Atualiza em segundo plano com o GPS real do telemóvel
@@ -809,7 +809,6 @@
         console.warn("Servidor de rotas OSRM indisponível, gerando traçado urbano alternativo:", e);
       }
 
-      // Traçado alternativo inteligente para contornar quarteirões se o OSRM falhar
       const latMid = (origem[0] + destino[0]) / 2 + 0.0008;
       const lngMid = (origem[1] + destino[1]) / 2 - 0.0008;
       const pontosRuas = [origem, [latMid, lngMid], destino];
