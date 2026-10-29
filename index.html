@@ -341,6 +341,7 @@
     let pUserMarker, pDestMarker, pRouteLine;
     let dSelfMarker, dOrigMarker, dDestMarker;
     let dRouteLayerGroup = null;
+    let driverFirstCenter = false; // Controle do zoom inicial do motorista
 
     let driverMarkersOnPassengerMap = {};
     let passengerMarkersOnDriverMap = {};
@@ -730,7 +731,7 @@
       }
 
       if (navigator.geolocation) {
-        navigator.geolocation.watchPosition((position) => {
+        navigator.geolocation.getCurrentPosition((position) => {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
           origem = [lat, lng];
@@ -738,7 +739,6 @@
           if (!destino) passengerMap.setView(origem, 17);
           pUserMarker.setLatLng(origem);
 
-          // TRANSMITE POSIÇÃO DO PASSAGEIRO LOGADO EM TEMPO REAL
           if (currentUser && currentUser.name) {
             const passengerKey = currentUser.name.replace(/\s+/g, '_');
             db.ref('taxisjn_passageiros_loc/' + passengerKey).set({
@@ -757,7 +757,6 @@
       escutarMotoristasNoMapaPassageiro();
     }
 
-    // MOSTRA TODOS OS MOTORISTAS CONECTADOS NO MAPA DO PASSAGEIRO
     function escutarMotoristasNoMapaPassageiro() {
       db.ref('taxisjn_motoristas_loc').on('value', (snapshot) => {
         const drivers = snapshot.val() || {};
@@ -765,7 +764,6 @@
 
         Object.keys(drivers).forEach(key => {
           const d = drivers[key];
-          // Considera ativo se enviou localização nos últimos 3 minutos
           if (now - (d.timestamp || 0) < 180000) {
             if (driverMarkersOnPassengerMap[key]) {
               driverMarkersOnPassengerMap[key].setLatLng([d.lat, d.lng]);
@@ -812,7 +810,6 @@
           let calculoPreco = TAXA_MINIMA + (distanciaKm * PRECO_POR_KM);
           if (calculoPreco < TAXA_MINIMA) calculoPreco = TAXA_MINIMA;
           
-          // PREÇO ARREDONDADO SEM CENTAVOS
           valorEstimado = Math.round(calculoPreco);
 
           document.getElementById('distance-text').innerText = `Distância: ${distanciaKm.toFixed(1)} km`;
@@ -844,7 +841,6 @@
       let calculoPreco = TAXA_MINIMA + (distanciaKm * PRECO_POR_KM);
       if (calculoPreco < TAXA_MINIMA) calculoPreco = TAXA_MINIMA;
 
-      // PREÇO ARREDONDADO SEM CENTAVOS
       valorEstimado = Math.round(calculoPreco);
 
       document.getElementById('distance-text').innerText = `Distância: ${distanciaKm.toFixed(1)} km`;
@@ -947,7 +943,7 @@
       });
     }
 
-    // MAPA MOTORISTA
+    // MAPA MOTORISTA COM CONTROLE DE ZOOM LIVRE
     function initDriverMapBase() {
       if (!driverMap) {
         driverMap = L.map('driver-map', { 
@@ -975,7 +971,15 @@
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
           driverPos = [lat, lng];
-          driverMap.setView(driverPos, 17);
+          
+          // CENTRALIZA APENAS NA PRIMEIRA VEZ. DEPOIS USA PANTO PARA NÃO REDEFINIR O ZOOM DO MOTORISTA
+          if (!driverFirstCenter) {
+            driverMap.setView(driverPos, 17);
+            driverFirstCenter = true;
+          } else {
+            driverMap.panTo(driverPos);
+          }
+
           dSelfMarker.setLatLng(driverPos);
 
           if (currentUser && currentUser.plate) {
@@ -1000,7 +1004,6 @@
       escutarPassageirosNoMapaMotorista();
     }
 
-    // MOSTRA TODOS OS PASSAGEIROS CONECTADOS NO MAPA DO MOTORISTA
     function escutarPassageirosNoMapaMotorista() {
       db.ref('taxisjn_passageiros_loc').on('value', (snapshot) => {
         const passengers = snapshot.val() || {};
@@ -1008,7 +1011,6 @@
 
         Object.keys(passengers).forEach(key => {
           const p = passengers[key];
-          // Mantém exibido se ativo nos últimos 5 minutos
           if (now - (p.timestamp || 0) < 300000) {
             if (passengerMarkersOnDriverMap[key]) {
               passengerMarkersOnDriverMap[key].setLatLng([p.lat, p.lng]);
