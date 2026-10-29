@@ -269,7 +269,6 @@
       <div>
         <span>Painel do Motorista</span>
         <div class="user-badge" id="driver-badge">Nome (Placa)</div>
-        <!-- MENSAGEM DE TAXAS DEVIDAS ADICIONADA NO TOPO -->
         <div id="driver-taxas-badge" style="font-size: 11px; color: #ff5252; margin-top: 2px; font-weight: bold;">Taxas devidas: R$ 0,00</div>
       </div>
       <button onclick="sairDaConta()">Sair / Trocar Perfil</button>
@@ -372,6 +371,8 @@
     let driverStatusRef = null;
     let isDriverBlocked = false;
     let passengerRideListenerRef = null;
+    let passengerGpsWatchId = null;
+    let passengerFirstCenter = false;
 
     let passengerMap, driverMap;
     let pUserMarker, pDestMarker, pRouteLine;
@@ -416,6 +417,10 @@
     }
 
     async function sairDaConta() {
+      if (passengerGpsWatchId) {
+        navigator.geolocation.clearWatch(passengerGpsWatchId);
+        passengerGpsWatchId = null;
+      }
       try {
         await auth.signOut();
       } catch (e) {
@@ -828,13 +833,22 @@
         pUserMarker = L.marker(origem, { icon: greenIcon }).addTo(passengerMap);
       }
 
+      // ATIVAÇÃO IMEDIATA E CONTÍNUA DO GPS NO CELULAR DO PASSAGEIRO
       if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((position) => {
+        if (passengerGpsWatchId) {
+          navigator.geolocation.clearWatch(passengerGpsWatchId);
+        }
+
+        passengerGpsWatchId = navigator.geolocation.watchPosition((position) => {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
           origem = [lat, lng];
-          
-          if (!destino) passengerMap.setView(origem, 17);
+
+          if (!passengerFirstCenter && !destino) {
+            passengerMap.setView(origem, 17);
+            passengerFirstCenter = true;
+          }
+
           pUserMarker.setLatLng(origem);
 
           if (currentUser && currentUser.name) {
@@ -848,8 +862,10 @@
             });
           }
         }, (error) => {
-          console.warn("GPS indisponível, utilizando padrão:", error);
-        }, { enableHighAccuracy: true, timeout: 10000 });
+          console.warn("GPS Passageiro Erro:", error);
+        }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 });
+      } else {
+        alert("Geolocalização não é suportada por este navegador/dispositivo.");
       }
 
       escutarMotoristasNoMapaPassageiro();
@@ -1147,7 +1163,6 @@
         isDriverBlocked = data.bloqueado === true;
         const saldoDevido = data.saldoDevedor || 0;
 
-        // ATUALIZA O VALOR DAS TAXAS DEVIDAS NO TOPO DA TELA
         const badgeTaxas = document.getElementById('driver-taxas-badge');
         if (badgeTaxas) {
           badgeTaxas.innerText = `Taxas devidas: R$ ${saldoDevido.toFixed(2).replace('.', ',')}`;
