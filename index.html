@@ -792,7 +792,6 @@
           if (pRouteLine) {
             passengerMap.removeLayer(pRouteLine);
           }
-          // LINHA PONTILHADA PASSAGEIRO
           pRouteLine = L.polyline(coords, { color: '#ffc107', weight: 6, opacity: 0.85, dashArray: '10, 10' }).addTo(passengerMap);
           passengerMap.fitBounds(pRouteLine.getBounds(), { padding: [50, 50] });
           return;
@@ -897,8 +896,20 @@
             <b>Valor Pago: R$ ${valorFormatado}</b><br>
             Obrigado por viajar com a TaxiSJN.
           `;
+          
+          // REINICIALIZAÇÃO SUAVE SEM RECARREGAR A TELA
           setTimeout(() => {
-            window.location.reload();
+            if (pRouteLine) passengerMap.removeLayer(pRouteLine);
+            if (pDestMarker) passengerMap.removeLayer(pDestMarker);
+            pDestMarker = null;
+            pRouteLine = null;
+            destino = null;
+
+            document.getElementById('status-box').style.display = 'none';
+            document.getElementById('passenger-search-box').style.display = 'flex';
+            document.getElementById('instruction-text').style.display = 'block';
+            document.getElementById('destination-input').value = '';
+            document.getElementById('btn-request').disabled = false;
           }, 4000);
         }
       });
@@ -944,7 +955,6 @@
             });
           }
 
-          // ATUALIZA A ROTA APAGANDO CONFORME O MOTORISTA AVANÇA ATÉ O PASSAGEIRO
           if (pendingRide && (pendingRide.status === 'aceita' || pendingRide.status === 'em_andamento')) {
             desenharRotaDinamicaMotorista(driverPos, [pendingRide.origemLat, pendingRide.origemLng]);
           }
@@ -1078,13 +1088,11 @@
         console.warn("OSRM falhou no motorista, usando linha padrão");
       }
 
-      // LINHA PONTILHADA SOLICITAÇÃO
       const line = L.polyline(coords, { color: '#ffc107', weight: 6, opacity: 0.85, dashArray: '10, 10' });
       dRouteLayerGroup.addLayer(line);
       driverMap.fitBounds(line.getBounds(), { padding: [50, 50] });
     }
 
-    // DESENHA E ENCURTA A ROTA PONTILHADA CONFORME O MOTORISTA SE MOVIMENTA ATÉ O PASSAGEIRO
     async function desenharRotaDinamicaMotorista(posAtualMotorista, posPassageiro) {
       if (!driverMap) return;
 
@@ -1108,7 +1116,6 @@
         console.warn("OSRM falhou na atualização de rota dinâmica");
       }
 
-      // LINHA PONTILHADA VERDE QUE VAI ENCURTANDO ATÉ O PASSAGEIRO
       const line = L.polyline(coords, { color: '#27ae60', weight: 6, opacity: 0.85, dashArray: '10, 10' });
       dRouteLayerGroup.addLayer(line);
     }
