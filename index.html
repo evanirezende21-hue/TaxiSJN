@@ -207,7 +207,6 @@
           <input type="text" id="user-plate" placeholder="Ex: ABC-1234" />
         </div>
 
-        <!-- ESCOLHA DO ÍCONE DO VEÍCULO -->
         <div class="form-group" id="group-icon-style" style="display: none;">
           <label>Escolher Ícone do Veículo no Mapa</label>
           <select id="user-icon-choice">
@@ -270,6 +269,8 @@
       <div>
         <span>Painel do Motorista</span>
         <div class="user-badge" id="driver-badge">Nome (Placa)</div>
+        <!-- MENSAGEM DE TAXAS DEVIDAS ADICIONADA NO TOPO -->
+        <div id="driver-taxas-badge" style="font-size: 11px; color: #ff5252; margin-top: 2px; font-weight: bold;">Taxas devidas: R$ 0,00</div>
       </div>
       <button onclick="sairDaConta()">Sair / Trocar Perfil</button>
     </header>
@@ -396,7 +397,6 @@
     const greenIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png', iconSize: [25, 41], iconAnchor: [12, 41] });
     const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', iconSize: [25, 41], iconAnchor: [12, 41] });
 
-    // OPÇÕES DE ÍCONES PERSONALIZADOS EM SVG
     const iconesVeiculos = {
       taxi: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%23ffc107" stroke="%23000000" stroke-width="3"/><path d="M18 36 L22 24 L42 24 L46 36 Z" fill="%23222222"/><rect x="16" y="34" width="32" height="10" rx="3" fill="%23222222"/><circle cx="22" cy="44" r="6" fill="%23111"/><circle cx="42" cy="44" r="6" fill="%23111"/><path d="M24 24 L28 18 L36 18 L40 24 Z" fill="%23444"/></svg>`,
       sedan: `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 64 64"><circle cx="32" cy="32" r="30" fill="%232196f3" stroke="%23ffffff" stroke-width="3"/><path d="M16 38 L20 25 L44 25 L48 38 Z" fill="%23ffffff"/><rect x="14" y="36" width="36" height="10" rx="3" fill="%23ffffff"/><circle cx="21" cy="46" r="5" fill="%23111"/><circle cx="43" cy="46" r="5" fill="%23111"/></svg>`,
@@ -1145,6 +1145,14 @@
       driverStatusRef.on('value', (snapshot) => {
         const data = snapshot.val() || {};
         isDriverBlocked = data.bloqueado === true;
+        const saldoDevido = data.saldoDevedor || 0;
+
+        // ATUALIZA O VALOR DAS TAXAS DEVIDAS NO TOPO DA TELA
+        const badgeTaxas = document.getElementById('driver-taxas-badge');
+        if (badgeTaxas) {
+          badgeTaxas.innerText = `Taxas devidas: R$ ${saldoDevido.toFixed(2).replace('.', ',')}`;
+          badgeTaxas.style.color = saldoDevido > 0 ? '#ff5252' : '#69f0ae';
+        }
 
         const emptyBox = document.getElementById('driver-empty-box');
         const reqCard = document.getElementById('driver-request-card');
