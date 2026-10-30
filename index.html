@@ -417,7 +417,6 @@
       });
     }
 
-    // CALCULAR ÂNGULO/DIREÇÃO DE MOVIMENTO (BEARING)
     function calcularAnguloMovimento(p1, p2) {
       const lat1 = p1[0] * Math.PI / 180;
       const lon1 = p1[1] * Math.PI / 180;
@@ -563,7 +562,7 @@
       document.getElementById('group-phone').style.display = newRole === 'passageiro' ? 'block' : 'none';
       document.getElementById('group-plate').style.display = newRole === 'motorista' ? 'block' : 'none';
       document.getElementById('group-icon-style').style.display = newRole === 'motorista' ? 'block' : 'none';
-      document.getElementById('group-admin-pass').style.display = newRole === 'admin' ? 'block' : 'none';
+      document.getElementById('group-admin-pass').style.display = newRole === 'admin' ? 'none' : 'block';
       document.getElementById('google-btn-container').style.display = newRole === 'admin' ? 'none' : 'block';
     }
 
@@ -1111,18 +1110,16 @@
         navigator.geolocation.watchPosition((position) => {
           const lat = position.coords.latitude;
           const lng = position.coords.longitude;
-          const heading = position.coords.heading; // DIREÇÃO DO GPS SE DISPONÍVEL
+          const heading = position.coords.heading;
           driverPos = [lat, lng];
           
           let bearingCalculado = 0;
 
-          // CALCULA O ÂNGULO DE MOVIMENTO COM BASE NA POSIÇÃO ANTERIOR
           if (previousDriverPos) {
             const dist = L.latLng(driverPos).distanceTo(L.latLng(previousDriverPos));
-            if (dist > 2) { // ROTA APENAS SE HOUVER DESLOCAMENTO RELEVANTE (> 2 METROS)
+            if (dist > 2) {
               bearingCalculado = heading !== null && !isNaN(heading) ? heading : calcularAnguloMovimento(previousDriverPos, driverPos);
               
-              // ROTACIONA O MAPA NA DIREÇÃO DE MOVIMENTO (MODO GPS/NAVEGAÇÃO)
               if (driverMap.setBearing) {
                 driverMap.setBearing(bearingCalculado);
               }
@@ -1149,6 +1146,7 @@
             });
           }
 
+          // FORÇA A ATUALIZAÇÃO DA ROTA DINÂMICA CONSTANTEMENTE ENQUANTO EM VIAGEM OU A CAMINHO
           if (pendingRide && (pendingRide.status === 'aceita' || pendingRide.status === 'em_andamento')) {
             desenharRotaDinamicaMotorista(driverPos, [pendingRide.origemLat, pendingRide.origemLng]);
           }
@@ -1389,6 +1387,8 @@
         activeRideId = rideId;
         document.getElementById('driver-request-card').style.display = 'none';
         document.getElementById('driver-pickup-card').style.display = 'block';
+        // FORÇA O DESENHO DA ROTA IMEDIATAMENTE AO CLICAR EM ACEITAR
+        desenharRotaDinamicaMotorista(driverPos, [pendingRide.origemLat, pendingRide.origemLng]);
       }).catch(err => {
         console.error("Erro ao aceitar corrida:", err);
         alert("Erro ao aceitar corrida. Tente novamente.");
