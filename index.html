@@ -64,6 +64,18 @@
       background: #e5e3df;
     }
 
+    /* ESTILO DOS BALÕES DE NOME NO MAPA */
+    .leaflet-tooltip.map-name-tooltip {
+      background: rgba(0, 0, 0, 0.8);
+      color: #ffc107;
+      border: 1px solid #ffc107;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-weight: bold;
+      font-size: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+
     /* BOTÃO ESTILO GOOGLE MAPS PARA MUDANÇA DE CAMADA */
     .map-layer-btn {
       position: absolute;
@@ -562,7 +574,7 @@
       document.getElementById('group-phone').style.display = newRole === 'passageiro' ? 'block' : 'none';
       document.getElementById('group-plate').style.display = newRole === 'motorista' ? 'block' : 'none';
       document.getElementById('group-icon-style').style.display = newRole === 'motorista' ? 'block' : 'none';
-      document.getElementById('group-admin-pass').style.display = newRole === 'admin' ? 'none' : 'block';
+      document.getElementById('group-admin-pass').style.display = newRole === 'admin' ? 'block' : 'none';
       document.getElementById('google-btn-container').style.display = newRole === 'admin' ? 'none' : 'block';
     }
 
@@ -845,6 +857,8 @@
 
       if (!pUserMarker) {
         pUserMarker = L.marker(origem, { icon: greenIcon }).addTo(passengerMap);
+        // ADICIONA O BALÃO COM O NOME DO PASSAGEIRO
+        pUserMarker.bindTooltip(currentUser.name, { permanent: true, direction: 'top', className: 'map-name-tooltip', offset: [0, -35] }).openTooltip();
       }
 
       if (navigator.geolocation) {
@@ -894,12 +908,16 @@
           if (now - (d.timestamp || 0) < 180000) {
             const iconeEscolhido = d.iconeVeiculo || 'taxi';
             const iconeDinamico = getDriverIcon(iconeEscolhido);
+            const nomeMotorista = d.nome || 'Motorista';
 
             if (driverMarkersOnPassengerMap[key]) {
               driverMarkersOnPassengerMap[key].setLatLng([d.lat, d.lng]);
               driverMarkersOnPassengerMap[key].setIcon(iconeDinamico);
+              driverMarkersOnPassengerMap[key].setTooltipContent(nomeMotorista);
             } else {
-              driverMarkersOnPassengerMap[key] = L.marker([d.lat, d.lng], { icon: iconeDinamico }).addTo(passengerMap);
+              const marker = L.marker([d.lat, d.lng], { icon: iconeDinamico }).addTo(passengerMap);
+              marker.bindTooltip(nomeMotorista, { permanent: true, direction: 'top', className: 'map-name-tooltip', offset: [0, -15] }).openTooltip();
+              driverMarkersOnPassengerMap[key] = marker;
             }
           } else {
             if (driverMarkersOnPassengerMap[key]) {
@@ -1102,6 +1120,8 @@
       const meuIcone = getDriverIcon(currentUser.iconStyle);
       if (!dSelfMarker) {
         dSelfMarker = L.marker(driverPos, { icon: meuIcone }).addTo(driverMap);
+        // ADICIONA O BALÃO COM O NOME DO MOTORISTA
+        dSelfMarker.bindTooltip(`${currentUser.name} (${currentUser.plate})`, { permanent: true, direction: 'top', className: 'map-name-tooltip', offset: [0, -18] }).openTooltip();
       } else {
         dSelfMarker.setIcon(meuIcone);
       }
@@ -1140,13 +1160,13 @@
             db.ref('taxisjn_motoristas_loc/' + currentUser.plate.replace(/\s+/g, '_')).set({
               lat: lat,
               lng: lng,
+              nome: currentUser.name,
               iconeVeiculo: currentUser.iconStyle,
               heading: bearingCalculado,
               timestamp: Date.now()
             });
           }
 
-          // FORÇA A ATUALIZAÇÃO DA ROTA DINÂMICA CONSTANTEMENTE ENQUANTO EM VIAGEM OU A CAMINHO
           if (pendingRide && (pendingRide.status === 'aceita' || pendingRide.status === 'em_andamento')) {
             desenharRotaDinamicaMotorista(driverPos, [pendingRide.origemLat, pendingRide.origemLng]);
           }
@@ -1168,10 +1188,14 @@
         Object.keys(passengers).forEach(key => {
           const p = passengers[key];
           if (now - (p.timestamp || 0) < 300000) {
+            const nomePassageiro = p.nome || 'Passageiro';
             if (passengerMarkersOnDriverMap[key]) {
               passengerMarkersOnDriverMap[key].setLatLng([p.lat, p.lng]);
+              passengerMarkersOnDriverMap[key].setTooltipContent(nomePassageiro);
             } else {
-              passengerMarkersOnDriverMap[key] = L.marker([p.lat, p.lng], { icon: greenIcon }).addTo(driverMap);
+              const marker = L.marker([p.lat, p.lng], { icon: greenIcon }).addTo(driverMap);
+              marker.bindTooltip(nomePassageiro, { permanent: true, direction: 'top', className: 'map-name-tooltip', offset: [0, -35] }).openTooltip();
+              passengerMarkersOnDriverMap[key] = marker;
             }
           } else {
             if (passengerMarkersOnDriverMap[key]) {
@@ -1387,7 +1411,6 @@
         activeRideId = rideId;
         document.getElementById('driver-request-card').style.display = 'none';
         document.getElementById('driver-pickup-card').style.display = 'block';
-        // FORÇA O DESENHO DA ROTA IMEDIATAMENTE AO CLICAR EM ACEITAR
         desenharRotaDinamicaMotorista(driverPos, [pendingRide.origemLat, pendingRide.origemLng]);
       }).catch(err => {
         console.error("Erro ao aceitar corrida:", err);
