@@ -332,10 +332,34 @@
     <header style="background: #111; color: #ffc107;">
       <div>
         <span>Painel do Administrador</span>
-        <div class="user-badge" style="color: #aaa;">Gestão de Taxas e Bloqueios</div>
+        <div class="user-badge" style="color: #aaa;">Gestão de Tarifas, Senha e Bloqueios</div>
       </div>
       <button onclick="sairDaConta()">Sair</button>
     </header>
+
+    <!-- FORMULÁRIO DE CONFIGURAÇÕES DE TARIFAS E SENHA -->
+    <div class="admin-card" style="margin-bottom: 20px; background: #222; border: 1px solid #ffc107;">
+      <h3 style="color: #ffc107; font-size: 16px; margin-bottom: 12px;">⚙️ Configurações de Tarifas e Segurança</h3>
+      
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1; min-width: 130px; margin-bottom: 8px;">
+          <label>Valor Mínimo (R$)</label>
+          <input type="number" step="0.01" id="cfg-min-price" placeholder="6.68" />
+        </div>
+
+        <div class="form-group" style="flex: 1; min-width: 130px; margin-bottom: 8px;">
+          <label>Preço por KM (R$)</label>
+          <input type="number" step="0.01" id="cfg-km-price" placeholder="2.50" />
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>Nova Senha de Administrador</label>
+        <input type="password" id="cfg-admin-pass" placeholder="Digite a nova senha admin" />
+      </div>
+
+      <button class="btn-primary" onclick="salvarConfiguracoesAdmin()" style="margin-top: 0; padding: 10px;">💾 SALVAR CONFIGURAÇÕES</button>
+    </div>
 
     <div style="margin-bottom: 16px;">
       <h3 style="color: #ffc107; font-size: 18px; margin-bottom: 4px;">TaxiSJN Motoristas Cadastrados</h3>
@@ -372,7 +396,24 @@
 
     auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 
-    const ADMIN_PASSWORD_CORRETA = "Rinaverinave32@";
+    // VALORES PADRÃO (CARREGADOS/ATUALIZADOS EM TEMPO REAL PELO FIREBASE)
+    let ADMIN_PASSWORD_CORRETA = "Rinaverinave32@";
+    let TAXA_MINIMA = 6.68;
+    let PRECO_POR_KM = 2.50;
+
+    // ESCUTAR CONFIGURAÇÕES EM TEMPO REAL NO FIREBASE
+    db.ref('taxisjn_configuracoes').on('value', (snapshot) => {
+      const cfg = snapshot.val();
+      if (cfg) {
+        if (cfg.taxaMinima !== undefined) TAXA_MINIMA = parseFloat(cfg.taxaMinima);
+        if (cfg.precoPorKm !== undefined) PRECO_POR_KM = parseFloat(cfg.precoPorKm);
+        if (cfg.senhaAdmin !== undefined && cfg.senhaAdmin !== "") ADMIN_PASSWORD_CORRETA = cfg.senhaAdmin;
+
+        document.getElementById('cfg-min-price').value = TAXA_MINIMA;
+        document.getElementById('cfg-km-price').value = PRECO_POR_KM;
+        document.getElementById('cfg-admin-pass').value = ADMIN_PASSWORD_CORRETA;
+      }
+    });
 
     let currentRole = 'passageiro';
     let currentUser = null;
@@ -405,9 +446,6 @@
     let destino = null;
     let valorEstimado = 0;
     let distanciaKm = 0;
-
-    const TAXA_MINIMA = 6.68;
-    const PRECO_POR_KM = 2.50;
 
     const greenIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png', iconSize: [25, 41], iconAnchor: [12, 41] });
     const redIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png', iconSize: [25, 41], iconAnchor: [12, 41] });
@@ -718,6 +756,28 @@
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       document.getElementById('admin-screen').classList.add('active');
       carregarListaAdmin();
+    }
+
+    function salvarConfiguracoesAdmin() {
+      const novaTaxaMinima = parseFloat(document.getElementById('cfg-min-price').value);
+      const novoPrecoKm = parseFloat(document.getElementById('cfg-km-price').value);
+      const novaSenha = document.getElementById('cfg-admin-pass').value.trim();
+
+      if (isNaN(novaTaxaMinima) || isNaN(novoPrecoKm) || !novaSenha) {
+        alert("Por favor, preencha todos os campos das configurações corretamente.");
+        return;
+      }
+
+      db.ref('taxisjn_configuracoes').set({
+        taxaMinima: novaTaxaMinima,
+        precoPorKm: novoPrecoKm,
+        senhaAdmin: novaSenha
+      }).then(() => {
+        alert("Configurações atualizadas com sucesso!");
+      }).catch(err => {
+        console.error("Erro ao salvar configurações:", err);
+        alert("Erro ao salvar no banco de dados.");
+      });
     }
 
     function carregarListaAdmin() {
@@ -1392,7 +1452,7 @@
     }
 
     function limparRotaMotorista() {
-      if (dOrigMarker) { driverMap.loadLayer ? driverMap.removeLayer(dOrigMarker) : driverMap.removeLayer(dOrigMarker); dOrigMarker = null; }
+      if (dOrigMarker) { driverMap.removeLayer(dOrigMarker); dOrigMarker = null; }
       if (dDestMarker) { driverMap.removeLayer(dDestMarker); dDestMarker = null; }
       if (dRouteLayerGroup) { dRouteLayerGroup.clearLayers(); }
     }
