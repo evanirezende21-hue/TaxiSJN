@@ -238,7 +238,6 @@
         <button class="btn-search" onclick="buscarEndereçoPorTexto()">Buscar</button>
       </div>
 
-      <!-- BOTÃO DE CANCELAR/LIMPAR DESTINO ADICIONADO AQUI -->
       <div id="cancel-dest-container" style="display: none;">
         <button class="btn-cancel-dest" onclick="cancelarDestino()">❌ Limpar / Refazer Destino</button>
       </div>
@@ -319,7 +318,6 @@
       <button onclick="sairDaConta()">Sair</button>
     </header>
 
-    <!-- FORMULÁRIO DE CONFIGURAÇÕES DE TARIFAS E SENHA -->
     <div class="admin-card" style="margin-bottom: 20px; background: #222; border: 1px solid #ffc107;">
       <h3 style="color: #ffc107; font-size: 16px; margin-bottom: 12px;">⚙️ Configurações de Tarifas e Segurança</h3>
       
@@ -550,7 +548,6 @@
       }
     }
 
-    // FUNÇÃO PARA CANCELAR/LIMPAR A MARCAÇÃO DO DESTINO
     function cancelarDestino() {
       destino = null;
       if (pDestMarker) {
@@ -1250,7 +1247,7 @@
 
       verificarStatusMotorista();
       escutarCorridasParaMotorista();
-      escurarPassageirosNoMapaMotorista();
+      escutarPassageirosNoMapaMotorista();
     }
 
     function escutarPassageirosNoMapaMotorista() {
