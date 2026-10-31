@@ -305,18 +305,18 @@
       <div style="display: flex; gap: 10px; flex-wrap: wrap;">
         <div class="form-group" style="flex: 1; min-width: 130px; margin-bottom: 8px;">
           <label>Valor Mínimo (R$)</label>
-          <input type="number" step="0.01" id="cfg-min-price" placeholder="6.68" />
+          <input type="number" step="0.01" id="cfg-min-price" placeholder="Ex: 6.68" />
         </div>
 
         <div class="form-group" style="flex: 1; min-width: 130px; margin-bottom: 8px;">
           <label>Preço por KM (R$)</label>
-          <input type="number" step="0.01" id="cfg-km-price" placeholder="2.50" />
+          <input type="number" step="0.01" id="cfg-km-price" placeholder="Ex: 2.50" />
         </div>
       </div>
 
       <div class="form-group" style="margin-bottom: 12px;">
         <label>Nova Senha de Administrador</label>
-        <input type="text" id="cfg-admin-pass" placeholder="Digite a nova senha admin" />
+        <input type="text" id="cfg-admin-pass" placeholder="Digite apenas se quiser alterar a senha" />
       </div>
 
       <button class="btn-primary" onclick="salvarConfiguracoesAdmin()" style="margin-top: 0; padding: 10px;">💾 SALVAR CONFIGURAÇÕES</button>
@@ -361,23 +361,21 @@
     let TAXA_MINIMA = 6.68;
     let PRECO_POR_KM = 2.50;
 
-    let cfgLoadedOnce = false;
-
     // ESCUTAR CONFIGURAÇÕES EM TEMPO REAL NO FIREBASE
     db.ref('taxisjn_configuracoes').on('value', (snapshot) => {
       const cfg = snapshot.val();
       if (cfg) {
-        if (cfg.taxaMinima !== undefined) TAXA_MINIMA = parseFloat(cfg.taxaMinima);
-        if (cfg.precoPorKm !== undefined) PRECO_POR_KM = parseFloat(cfg.precoPorKm);
-        if (cfg.senhaAdmin !== undefined && cfg.senhaAdmin !== "") ADMIN_PASSWORD_CORRETA = cfg.senhaAdmin;
-      }
-
-      // Preenche os campos apenas na primeira carga para evitar sobrescrever o que o admin está digitando
-      if (!cfgLoadedOnce) {
-        document.getElementById('cfg-min-price').value = TAXA_MINIMA;
-        document.getElementById('cfg-km-price').value = PRECO_POR_KM;
-        document.getElementById('cfg-admin-pass').value = ADMIN_PASSWORD_CORRETA;
-        cfgLoadedOnce = true;
+        if (cfg.taxaMinima !== undefined) {
+          TAXA_MINIMA = parseFloat(cfg.taxaMinima);
+          document.getElementById('cfg-min-price').value = TAXA_MINIMA;
+        }
+        if (cfg.precoPorKm !== undefined) {
+          PRECO_POR_KM = parseFloat(cfg.precoPorKm);
+          document.getElementById('cfg-km-price').value = PRECO_POR_KM;
+        }
+        if (cfg.senhaAdmin !== undefined && cfg.senhaAdmin !== "") {
+          ADMIN_PASSWORD_CORRETA = cfg.senhaAdmin;
+        }
       }
     });
 
@@ -725,21 +723,46 @@
     }
 
     function salvarConfiguracoesAdmin() {
-      const novaTaxaMinima = parseFloat(document.getElementById('cfg-min-price').value);
-      const novoPrecoKm = parseFloat(document.getElementById('cfg-km-price').value);
-      const novaSenha = document.getElementById('cfg-admin-pass').value.trim();
+      const minInput = document.getElementById('cfg-min-price').value.trim();
+      const kmInput = document.getElementById('cfg-km-price').value.trim();
+      const passInput = document.getElementById('cfg-admin-pass').value.trim();
 
-      if (isNaN(novaTaxaMinima) || isNaN(novoPrecoKm) || !novaSenha) {
-        alert("Por favor, preencha todos os campos das configurações corretamente.");
+      const updates = {};
+
+      if (minInput !== "") {
+        const valMin = parseFloat(minInput);
+        if (!isNaN(valMin) && valMin >= 0) {
+          updates.taxaMinima = valMin;
+        } else {
+          alert("Valor mínimo inválido.");
+          return;
+        }
+      }
+
+      if (kmInput !== "") {
+        const valKm = parseFloat(kmInput);
+        if (!isNaN(valKm) && valKm >= 0) {
+          updates.precoPorKm = valKm;
+        } else {
+          alert("Preço por KM inválido.");
+          return;
+        }
+      }
+
+      if (passInput !== "") {
+        updates.senhaAdmin = passInput;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        alert("Preencha ao menos um campo para alterar.");
         return;
       }
 
-      db.ref('taxisjn_configuracoes').set({
-        taxaMinima: novaTaxaMinima,
-        precoPorKm: novoPrecoKm,
-        senhaAdmin: novaSenha
-      }).then(() => {
-        alert("Configurações atualizadas com sucesso!");
+      db.ref('taxisjn_configuracoes').update(updates).then(() => {
+        alert("Configuração(ões) atualizada(s) com sucesso!");
+        if (updates.senhaAdmin) {
+          document.getElementById('cfg-admin-pass').value = '';
+        }
       }).catch(err => {
         console.error("Erro ao salvar configurações:", err);
         alert("Erro ao salvar no banco de dados.");
@@ -1205,7 +1228,7 @@
 
       verificarStatusMotorista();
       escutarCorridasParaMotorista();
-      escurarPassageirosNoMapaMotorista();
+      escutarPassageirosNoMapaMotorista();
     }
 
     function escutarPassageirosNoMapaMotorista() {
