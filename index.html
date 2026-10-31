@@ -1304,4 +1304,161 @@
         } else if (foundPending && !activeRideId) {
           pendingRide = foundPending;
           emptyBox.style.display = 'none';
-          reqCard.style
+          reqCard.style.display = 'block';
+          pickupCard.style.display = 'none';
+          activeCard.style.display = 'none';
+
+          const valFormatado = Math.round(foundPending.valor || 0);
+
+          document.getElementById('driver-ride-price').innerText = `R$ ${valFormatado},00`;
+          document.getElementById('driver-passenger-info').innerHTML = `<b>Passageiro:</b> ${foundPending.passageiroNome} (${foundPending.passageiroTel || 'Sem tel'})`;
+
+          if (lastNotifiedRideId !== foundPending.id) {
+            lastNotifiedRideId = foundPending.id;
+            alertarMotoristaComSom();
+          }
+
+          mostrarSolicitacaoNoMapaMotorista(foundPending);
+
+        } else if (!activeRideId) {
+          pendingRide = null;
+          emptyBox.style.display = 'block';
+          reqCard.style.display = 'none';
+          pickupCard.style.display = 'none';
+          activeCard.style.display = 'none';
+          limparRotaMotorista();
+        }
+      });
+    }
+
+    async function mostrarSolicitacaoNoMapaMotorista(ride) {
+      if (!driverMap) return;
+      const orig = [ride.origemLat, ride.origemLng];
+      const dest = [ride.destinoLat, ride.destinoLng];
+
+      if (dOrigMarker) driverMap.removeLayer(dOrigMarker);
+      if (dDestMarker) driverMap.removeLayer(dDestMarker);
+
+      dOrigMarker = L.marker(orig, { icon: greenIcon }).addTo(driverMap);
+      dDestMarker = L.marker(dest, { icon: redIcon }).addTo(driverMap);
+
+      if (!dRouteLayerGroup) {
+        dRouteLayerGroup = L.layerGroup().addTo(driverMap);
+      }
+      dRouteLayerGroup.clearLayers();
+
+      let coords = [orig, dest];
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${orig[1]},${orig[0]};${dest[1]},${dest[0]}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.routes && data.routes.length > 0) {
+          coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        }
+      } catch (e) {
+        console.warn("OSRM falhou no motorista, usando linha padrão");
+      }
+
+      const line = L.polyline(coords, { color: '#ffc107', weight: 6, opacity: 0.85, dashArray: '10, 10' });
+      dRouteLayerGroup.addLayer(line);
+      driverMap.fitBounds(line.getBounds(), { padding: [50, 50] });
+    }
+
+    async function desenharRotaDinamicaMotorista(posAtualMotorista, posPassageiro) {
+      if (!driverMap) return;
+
+      if (dOrigMarker) driverMap.removeLayer(dOrigMarker);
+      dOrigMarker = L.marker(posPassageiro, { icon: greenIcon }).addTo(driverMap);
+
+      if (!dRouteLayerGroup) {
+        dRouteLayerGroup = L.layerGroup().addTo(driverMap);
+      }
+      dRouteLayerGroup.clearLayers();
+
+      let coords = [posAtualMotorista, posPassageiro];
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${posAtualMotorista[1]},${posAtualMotorista[0]};${posPassageiro[1]},${posPassageiro[0]}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.routes && data.routes.length > 0) {
+          coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        }
+      } catch (e) {
+        console.warn("OSRM falhou na atualização de rota dinâmica");
+      }
+
+      const line = L.polyline(coords, { color: '#27ae60', weight: 6, opacity: 0.85, dashArray: '10, 10' });
+      dRouteLayerGroup.addLayer(line);
+    }
+
+    function limparRotaMotorista() {
+      if (dOrigMarker) { driverMap.loadLayer ? driverMap.removeLayer(dOrigMarker) : driverMap.removeLayer(dOrigMarker); dOrigMarker = null; }
+      if (dDestMarker) { driverMap.removeLayer(dDestMarker); dDestMarker = null; }
+      if (dRouteLayerGroup) { dRouteLayerGroup.clearLayers(); }
+    }
+
+    function confirmarAceiteCorrida() {
+      if (isDriverBlocked) {
+        alert("Sua conta está suspensa pelo administrador.");
+        return;
+      }
+      if (!pendingRide) return;
+      const rideId = pendingRide.id;
+
+      db.ref('taxisjn_corridas/' + rideId).update({
+        status: 'aceita',
+        motoristaNome: currentUser.name,
+        motoristaPlaca: currentUser.plate
+      }).then(() => {
+        activeRideId = rideId;
+        document.getElementById('driver-request-card').style.display = 'none';
+        document.getElementById('driver-pickup-card').style.display = 'block';
+        desenharRotaDinamicaMotorista(driverPos, [pendingRide.origemLat, pendingRide.origemLng]);
+      }).catch(err => {
+        console.error("Erro ao aceitar corrida:", err);
+        alert("Erro ao aceitar corrida. Tente novamente.");
+      });
+    }
+
+    function iniciarViagemComPassageiro() {
+      if (!activeRideId) return;
+      db.ref('taxisjn_corridas/' + activeRideId).update({
+        status: 'em_andamento'
+      }).then(() => {
+        document.getElementById('driver-pickup-card').style.display = 'none';
+        document.getElementById('driver-active-card').style.display = 'block';
+      });
+    }
+
+    function finalizarCorrida() {
+      if (!activeRideId) return;
+      const rideId = activeRideId;
+
+      db.ref('taxisjn_corridas/' + rideId).update({
+        status: 'concluida'
+      }).then(() => {
+        const plateKey = currentUser.plate.replace(/\s+/g, '_');
+        const driverRef = db.ref('taxisjn_motoristas/' + plateKey);
+        driverRef.once('value').then(snap => {
+          const data = snap.val() || { nome: currentUser.name, placa: currentUser.plate, saldoDevedor: 0 };
+          const novoSaldo = (data.saldoDevedor || 0) + 0.50;
+          driverRef.update({
+            nome: currentUser.name,
+            placa: currentUser.plate,
+            saldoDevedor: novoSaldo
+          });
+        });
+
+        activeRideId = null;
+        pendingRide = null;
+        currentRideStatus = null;
+        limparRotaMotorista();
+
+        document.getElementById('driver-active-card').style.display = 'none';
+        document.getElementById('driver-empty-box').style.display = 'block';
+        alert("Corrida concluída com sucesso! Taxa de R$ 0,50 adicionada ao seu saldo.");
+      });
+    }
+  </script>
+</body>
+</html>
