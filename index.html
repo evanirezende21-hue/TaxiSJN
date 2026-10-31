@@ -727,45 +727,25 @@
       const kmInput = document.getElementById('cfg-km-price').value.trim();
       const passInput = document.getElementById('cfg-admin-pass').value.trim();
 
-      const updates = {};
+      // Busca os valores atuais do banco para garantir integridade e segurança
+      db.ref('taxisjn_configuracoes').once('value').then(snapshot => {
+        const atual = snapshot.val() || { senhaAdmin: ADMIN_PASSWORD_CORRETA };
+        
+        const updates = {
+          taxaMinima: minInput !== "" ? parseFloat(minInput) : (atual.taxaMinima || 6.68),
+          precoPorKm: kmInput !== "" ? parseFloat(kmInput) : (atual.precoPorKm || 2.50),
+          senhaAdmin: passInput !== "" ? passInput : atual.senhaAdmin
+        };
 
-      if (minInput !== "") {
-        const valMin = parseFloat(minInput);
-        if (!isNaN(valMin) && valMin >= 0) {
-          updates.taxaMinima = valMin;
-        } else {
-          alert("Valor mínimo inválido.");
-          return;
-        }
-      }
-
-      if (kmInput !== "") {
-        const valKm = parseFloat(kmInput);
-        if (!isNaN(valKm) && valKm >= 0) {
-          updates.precoPorKm = valKm;
-        } else {
-          alert("Preço por KM inválido.");
-          return;
-        }
-      }
-
-      if (passInput !== "") {
-        updates.senhaAdmin = passInput;
-      }
-
-      if (Object.keys(updates).length === 0) {
-        alert("Preencha ao menos um campo para alterar.");
-        return;
-      }
-
-      db.ref('taxisjn_configuracoes').update(updates).then(() => {
-        alert("Configuração(ões) atualizada(s) com sucesso!");
-        if (updates.senhaAdmin) {
-          document.getElementById('cfg-admin-pass').value = '';
-        }
-      }).catch(err => {
-        console.error("Erro ao salvar configurações:", err);
-        alert("Erro ao salvar no banco de dados.");
+        db.ref('taxisjn_configuracoes').set(updates).then(() => {
+          alert("Configurações atualizadas com sucesso!");
+          if (passInput !== "") {
+            document.getElementById('cfg-admin-pass').value = '';
+          }
+        }).catch(err => {
+          console.error("Erro de permissão:", err);
+          alert("Erro: Permissão negada pelo banco de dados. Verifique a senha ou as regras do Firebase.");
+        });
       });
     }
 
