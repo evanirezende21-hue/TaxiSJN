@@ -352,7 +352,7 @@
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- Leaflet Rotate JS -->
-  <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
+  <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.css"></script>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -469,6 +469,13 @@
         navigator.geolocation.clearWatch(passengerGpsWatchId);
         passengerGpsWatchId = null;
       }
+
+      // APAGA A LOCALIZAÇÃO DO MOTORISTA NO FIREBASE AO CLICAR EM SAIR
+      if (currentUser && currentUser.plate) {
+        const plateKey = currentUser.plate.replace(/\s+/g, '_');
+        db.ref('taxisjn_motoristas_loc/' + plateKey).remove();
+      }
+
       try {
         await auth.signOut();
       } catch (e) {
@@ -966,6 +973,14 @@
         const drivers = snapshot.val() || {};
         const now = Date.now();
 
+        // REMOVE O ÍCONE SE O MOTORISTA NÃO ESTIVER MAIS NO BANCO DE DADOS
+        Object.keys(driverMarkersOnPassengerMap).forEach(key => {
+          if (!drivers[key]) {
+            passengerMap.removeLayer(driverMarkersOnPassengerMap[key]);
+            delete driverMarkersOnPassengerMap[key];
+          }
+        });
+
         Object.keys(drivers).forEach(key => {
           const d = drivers[key];
           if (now - (d.timestamp || 0) < 180000) {
@@ -1226,7 +1241,13 @@
           dSelfMarker.setLatLng(driverPos);
 
           if (currentUser && currentUser.plate) {
-            db.ref('taxisjn_motoristas_loc/' + currentUser.plate.replace(/\s+/g, '_')).set({
+            const plateKey = currentUser.plate.replace(/\s+/g, '_');
+            const locRef = db.ref('taxisjn_motoristas_loc/' + plateKey);
+
+            // GARANTE A REMOÇÃO AUTOMÁTICA DA LOCALIZAÇÃO CASO A CONEXÃO CAIA OU O NAVEGADOR FECHE
+            locRef.onDisconnect().remove();
+
+            locRef.set({
               lat: lat,
               lng: lng,
               nome: currentUser.name,
