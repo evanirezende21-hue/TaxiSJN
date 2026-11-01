@@ -410,6 +410,7 @@
     let passengerRideListenerRef = null;
     let passengerGpsWatchId = null;
     let passengerFirstCenter = false;
+    let driverRouteToPassengerLine = null; // Adicionado para gerenciar a rota do motorista até o passageiro
 
     let passengerMap, driverMap;
     let pUserMarker, pDestMarker, pRouteLine;
@@ -1142,7 +1143,24 @@
             <b>Placa:</b> ${ride.motoristaPlaca}<br>
             <div style="font-size: 18px; color: #2e7d32; margin-top: 6px;"><b>Valor da Corrida: R$ ${valorFormatado},00</b></div>
           `;
+
+          // Desenha a rota em tempo real do motorista até o passageiro
+          if (ride.motoristaPlaca) {
+            const plateKey = ride.motoristaPlaca.replace(/\s+/g, '_');
+            db.ref('taxisjn_motoristas_loc/' + plateKey).on('value', (locSnap) => {
+              const loc = locSnap.val();
+              if (loc && loc.lat && loc.lng) {
+                desenharRotaMotoristaAtePassageiro([loc.lat, loc.lng], origem);
+              }
+            });
+          }
+
         } else if (ride.status === 'em_andamento') {
+          if (driverRouteToPassengerLine) {
+            passengerMap.removeLayer(driverRouteToPassengerLine);
+            driverRouteToPassengerLine = null;
+          }
+
           statusBox.style.display = 'block';
           statusBox.innerHTML = `
             ✅ <b style="color: #27ae60;">Viagem em andamento</b><br>
@@ -1150,6 +1168,11 @@
             <div style="font-size: 18px; color: #2e7d32; margin-top: 6px;"><b>Valor da Corrida: R$ ${valorFormatado},00</b></div>
           `;
         } else if (ride.status === 'concluida') {
+          if (driverRouteToPassengerLine) {
+            passengerMap.removeLayer(driverRouteToPassengerLine);
+            driverRouteToPassengerLine = null;
+          }
+
           statusBox.style.display = 'block';
           statusBox.innerHTML = `
             🎉 <b style="color: #27ae60;">Corrida Concluída!</b><br>
@@ -1173,6 +1196,27 @@
           }, 4000);
         }
       });
+    }
+
+    async function desenharRotaMotoristaAtePassageiro(posMotorista, posPassageiro) {
+      if (!passengerMap) return;
+
+      let coords = [posMotorista, posPassageiro];
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${posMotorista[1]},${posMotorista[0]};${posPassageiro[1]},${posPassageiro[0]}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.routes && data.routes.length > 0) {
+          coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        }
+      } catch (e) {
+        console.warn("Falha no cálculo OSRM da rota do motorista até o passageiro");
+      }
+
+      if (driverRouteToPassengerLine) {
+        passengerMap.removeLayer(driverRouteToPassengerLine);
+      }
+      driverRouteToPassengerLine = L.polyline(coords, { color: '#27ae60', weight: 5, opacity: 0.9, dashArray: '6, 8' }).addTo(passengerMap);
     }
 
     function initDriverMapBase() {
@@ -1218,17 +1262,15 @@
           
           let bearingCalculado = 0;
 
-          // Se o dispositivo fornecer o heading nativo do GPS ou houver deslocamento
           if (heading !== null && !isNaN(heading) && heading !== undefined) {
             bearingCalculado = heading;
           } else if (previousDriverPos) {
             const dist = L.latLng(driverPos).distanceTo(L.latLng(previousDriverPos));
-            if (dist > 1) { // Reduzido para 1 metro para dar resposta mais rápida no movimento
+            if (dist > 1) {
               bearingCalculado = calcularAnguloMovimento(previousDriverPos, driverPos);
             }
           }
 
-          // ROTACIONA O MAPA EM RELAÇÃO AO MOTORISTA
           if (driverMap && typeof driverMap.setBearing === 'function') {
             driverMap.setBearing(bearingCalculado);
           }
@@ -1273,6 +1315,7 @@
       escutarCorridasParaMotorista();
       escutarPassageirosNoMapaMotorista();
     }
+
     function escutarPassageirosNoMapaMotorista() {
       db.ref('taxisjn_passageiros_loc').on('value', (snapshot) => {
         const passengers = snapshot.val() || {};
