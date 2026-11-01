@@ -1181,8 +1181,9 @@
           zoomControl: true,
           rotate: true,
           touchRotate: true,
-          rotateControl: false
-        }).setView(driverPos, 16);
+          rotateControl: false,
+          bearing: 0
+        }).setView(driverPos, 17);
         
         driverSatLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
           maxZoom: 20,
@@ -1217,17 +1218,21 @@
           
           let bearingCalculado = 0;
 
-          if (previousDriverPos) {
+          // Se o dispositivo fornecer o heading nativo do GPS ou houver deslocamento
+          if (heading !== null && !isNaN(heading) && heading !== undefined) {
+            bearingCalculado = heading;
+          } else if (previousDriverPos) {
             const dist = L.latLng(driverPos).distanceTo(L.latLng(previousDriverPos));
-            // Rotação ativada quando o motorista se desloca mais de 2 metros
-            if (dist > 2) {
-              bearingCalculado = heading !== null && !isNaN(heading) ? heading : calcularAnguloMovimento(previousDriverPos, driverPos);
-              
-              if (driverMap.setBearing) {
-                driverMap.setBearing(bearingCalculado);
-              }
+            if (dist > 1) { // Reduzido para 1 metro para dar resposta mais rápida no movimento
+              bearingCalculado = calcularAnguloMovimento(previousDriverPos, driverPos);
             }
           }
+
+          // ROTACIONA O MAPA EM RELAÇÃO AO MOTORISTA
+          if (driverMap && typeof driverMap.setBearing === 'function') {
+            driverMap.setBearing(bearingCalculado);
+          }
+
           previousDriverPos = driverPos;
 
           if (!driverFirstCenter) {
@@ -1261,14 +1266,13 @@
           }
         }, (error) => {
           console.warn("GPS motorista erro:", error);
-        }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 });
+        }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
       }
 
       verificarStatusMotorista();
       escutarCorridasParaMotorista();
       escutarPassageirosNoMapaMotorista();
     }
-
     function escutarPassageirosNoMapaMotorista() {
       db.ref('taxisjn_passageiros_loc').on('value', (snapshot) => {
         const passengers = snapshot.val() || {};
