@@ -1148,7 +1148,6 @@
             const plateKey = ride.motoristaPlaca.replace(/\s+/g, '_');
             db.ref('taxisjn_motoristas_loc/' + plateKey).on('value', (locSnap) => {
               const loc = locSnap.val();
-              // Se a corrida for aceita e o motorista estiver a caminho, desenha/encurta a linha em tempo real
               if (ride.status === 'aceita' && loc && loc.lat && loc.lng) {
                 desenharRotaMotoristaAtePassageiro([loc.lat, loc.lng], [ride.origemLat, ride.origemLng]);
               } else {
@@ -1161,7 +1160,6 @@
           }
 
         } else if (ride.status === 'em_andamento') {
-          // Assim que a viagem começa, remove imediatamente a linha de busca
           if (driverRouteToPassengerLine) {
             passengerMap.removeLayer(driverRouteToPassengerLine);
             driverRouteToPassengerLine = null;
@@ -1174,6 +1172,7 @@
             <div style="font-size: 18px; color: #2e7d32; margin-top: 6px;"><b>Valor da Corrida: R$ ${valorFormatado},00</b></div>
           `;
         } else if (ride.status === 'concluida') {
+          // REMOVE A LINHA DO MOTORISTA ATÉ O PASSAGEIRO AO CONCLUIR
           if (driverRouteToPassengerLine) {
             passengerMap.removeLayer(driverRouteToPassengerLine);
             driverRouteToPassengerLine = null;
