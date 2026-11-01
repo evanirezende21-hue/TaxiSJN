@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>TaxiSJN</title>
 
-  <!-- TAG PWA ADICIONADA PARA RECONHECIMENTO DO MANIFESTO -->
+  <!-- TAG PWA -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#212121">
 
@@ -352,7 +352,7 @@
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- Leaflet Rotate JS -->
-  <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.css"></script>
+  <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js"></script>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -470,7 +470,6 @@
         passengerGpsWatchId = null;
       }
 
-      // APAGA A LOCALIZAÇÃO DO MOTORISTA NO FIREBASE AO CLICAR EM SAIR
       if (currentUser && currentUser.plate) {
         const plateKey = currentUser.plate.replace(/\s+/g, '_');
         db.ref('taxisjn_motoristas_loc/' + plateKey).remove();
@@ -973,7 +972,6 @@
         const drivers = snapshot.val() || {};
         const now = Date.now();
 
-        // REMOVE O ÍCONE SE O MOTORISTA NÃO ESTIVER MAIS NO BANCO DE DADOS
         Object.keys(driverMarkersOnPassengerMap).forEach(key => {
           if (!drivers[key]) {
             passengerMap.removeLayer(driverMarkersOnPassengerMap[key]);
@@ -1221,6 +1219,7 @@
 
           if (previousDriverPos) {
             const dist = L.latLng(driverPos).distanceTo(L.latLng(previousDriverPos));
+            // Rotação ativada quando o motorista se desloca mais de 2 metros
             if (dist > 2) {
               bearingCalculado = heading !== null && !isNaN(heading) ? heading : calcularAnguloMovimento(previousDriverPos, driverPos);
               
@@ -1244,7 +1243,6 @@
             const plateKey = currentUser.plate.replace(/\s+/g, '_');
             const locRef = db.ref('taxisjn_motoristas_loc/' + plateKey);
 
-            // GARANTE A REMOÇÃO AUTOMÁTICA DA LOCALIZAÇÃO CASO A CONEXÃO CAIA OU O NAVEGADOR FECHE
             locRef.onDisconnect().remove();
 
             locRef.set({
