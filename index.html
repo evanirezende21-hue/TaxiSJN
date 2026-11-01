@@ -410,7 +410,7 @@
     let passengerRideListenerRef = null;
     let passengerGpsWatchId = null;
     let passengerFirstCenter = false;
-    let driverRouteToPassengerLine = null; // Adicionado para gerenciar a rota do motorista até o passageiro
+    let driverRouteToPassengerLine = null;
 
     let passengerMap, driverMap;
     let pUserMarker, pDestMarker, pRouteLine;
@@ -1144,18 +1144,24 @@
             <div style="font-size: 18px; color: #2e7d32; margin-top: 6px;"><b>Valor da Corrida: R$ ${valorFormatado},00</b></div>
           `;
 
-          // Desenha a rota em tempo real do motorista até o passageiro
           if (ride.motoristaPlaca) {
             const plateKey = ride.motoristaPlaca.replace(/\s+/g, '_');
             db.ref('taxisjn_motoristas_loc/' + plateKey).on('value', (locSnap) => {
               const loc = locSnap.val();
-              if (loc && loc.lat && loc.lng) {
-                desenharRotaMotoristaAtePassageiro([loc.lat, loc.lng], origem);
+              // Se a corrida for aceita e o motorista estiver a caminho, desenha/encurta a linha em tempo real
+              if (ride.status === 'aceita' && loc && loc.lat && loc.lng) {
+                desenharRotaMotoristaAtePassageiro([loc.lat, loc.lng], [ride.origemLat, ride.origemLng]);
+              } else {
+                if (driverRouteToPassengerLine) {
+                  passengerMap.removeLayer(driverRouteToPassengerLine);
+                  driverRouteToPassengerLine = null;
+                }
               }
             });
           }
 
         } else if (ride.status === 'em_andamento') {
+          // Assim que a viagem começa, remove imediatamente a linha de busca
           if (driverRouteToPassengerLine) {
             passengerMap.removeLayer(driverRouteToPassengerLine);
             driverRouteToPassengerLine = null;
