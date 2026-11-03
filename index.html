@@ -157,6 +157,15 @@
     .btn-quitar { background: #2e7d32; color: #fff; }
     .btn-bloquear { background: #c62828; color: #fff; }
     .btn-desbloquear { background: #1565c0; color: #fff; }
+
+    .ride-item-card {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
   </style>
 </head>
 <body>
@@ -280,13 +289,10 @@
       <div class="info-text" id="driver-blocked-text" style="color: #b71c1c;">Sua conta foi suspensa pelo administrador. Entre em contato para regularizar seu acesso.</div>
     </div>
 
-    <div class="bottom-card" id="driver-request-card" style="display: none;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <strong style="font-size: 16px; color: #333;">Nova Solicitação!</strong>
-        <span class="price-tag" id="driver-ride-price">R$ 0,00</span>
-      </div>
-      <div class="info-text" id="driver-passenger-info"><b>Passageiro:</b> --</div>
-      <button class="btn-primary" id="btn-accept-ride" onclick="confirmarAceiteCorrida()">ACEITAR CORRIDA</button>
+    <!-- LISTA DE SOLICITAÇÕES PENDENTES PARA MOTORISTAS -->
+    <div class="bottom-card" id="driver-requests-container" style="display: none; max-height: 280px; overflow-y: auto;">
+      <strong style="font-size: 16px; color: #333; margin-bottom: 8px; display: block;">🚖 Corridas Pendentes Disponíveis:</strong>
+      <div id="driver-requests-list"></div>
     </div>
 
     <div class="bottom-card" id="driver-pickup-card" style="display: none;">
@@ -472,7 +478,12 @@
         passengerGpsWatchId = null;
       }
 
-      if (currentUser && currentUser.plate) {
+      if (currentUser && currentUser.name && currentRole === 'passageiro') {
+        const passengerKey = currentUser.name.replace(/\s+/g, '_');
+        db.ref('taxisjn_passageiros_loc/' + passengerKey).remove();
+      }
+
+      if (currentUser && currentUser.plate && currentRole === 'motorista') {
         const plateKey = currentUser.plate.replace(/\s+/g, '_');
         db.ref('taxisjn_motoristas_loc/' + plateKey).remove();
       }
@@ -951,7 +962,11 @@
 
           if (currentUser && currentUser.name) {
             const passengerKey = currentUser.name.replace(/\s+/g, '_');
-            db.ref('taxisjn_passageiros_loc/' + passengerKey).set({
+            const passRef = db.ref('taxisjn_passageiros_loc/' + passengerKey);
+
+            passRef.onDisconnect().remove();
+
+            passRef.set({
               lat: lat,
               lng: lng,
               nome: currentUser.name,
@@ -1164,7 +1179,6 @@
           }
 
         } else if (ride.status === 'em_andamento') {
-          // 1. APAGA COMPLETAMENTE A LINHA VERDE DO MOTORISTA ATÉ O PASSAGEIRO
           if (passengerDriverLocListenerRef) {
             passengerDriverLocListenerRef.off();
             passengerDriverLocListenerRef = null;
@@ -1174,7 +1188,6 @@
             driverRouteToPassengerLine = null;
           }
 
-          // 2. EXIBE A ROTA ATÉ O DESTINO E ATUALIZA DINAMICAMENTE CONFORME O MOTORISTA CAMINHA
           if (ride.destinoLat && ride.destinoLng) {
             const plateKey = ride.motoristaPlaca ? ride.motoristaPlaca.replace(/\s+/g, '_') : null;
             if (plateKey) {
@@ -1392,9 +1405,16 @@
         const passengers = snapshot.val() || {};
         const now = Date.now();
 
+        Object.keys(passengerMarkersOnDriverMap).forEach(key => {
+          if (!passengers[key]) {
+            driverMap.removeLayer(passengerMarkersOnDriverMap[key]);
+            delete passengerMarkersOnDriverMap[key];
+          }
+        });
+
         Object.keys(passengers).forEach(key => {
           const p = passengers[key];
-          if (now - (p.timestamp || 0) < 300000) {
+          if (now - (p.timestamp || 0) < 120000) {
             const nomePassageiro = p.nome || 'Passageiro';
             if (passengerMarkersOnDriverMap[key]) {
               passengerMarkersOnDriverMap[key].setLatLng([p.lat, p.lng]);
@@ -1430,14 +1450,14 @@
         }
 
         const emptyBox = document.getElementById('driver-empty-box');
-        const reqCard = document.getElementById('driver-request-card');
+        const reqContainer = document.getElementById('driver-requests-container');
         const pickupCard = document.getElementById('driver-pickup-card');
         const activeCard = document.getElementById('driver-active-card');
         const blockedCard = document.getElementById('driver-blocked-card');
 
         if (isDriverBlocked) {
           emptyBox.style.display = 'none';
-          reqCard.style.display = 'none';
+          reqContainer.style.display = 'none';
           pickupCard.style.display = 'none';
           activeCard.style.display = 'none';
           blockedCard.style.display = 'block';
@@ -1455,13 +1475,14 @@
     function escutarCorridasParaMotorista() {
       db.ref('taxisjn_corridas').on('value', (snapshot) => {
         const emptyBox = document.getElementById('driver-empty-box');
-        const reqCard = document.getElementById('driver-request-card');
+        const reqContainer = document.getElementById('driver-requests-container');
+        const reqList = document.getElementById('driver-requests-list');
         const pickupCard = document.getElementById('driver-pickup-card');
         const activeCard = document.getElementById('driver-active-card');
 
         if (isDriverBlocked) {
           emptyBox.style.display = 'none';
-          reqCard.style.display = 'none';
+          reqContainer.style.display = 'none';
           pickupCard.style.display = 'none';
           activeCard.style.display = 'none';
           limparRotaMotorista();
@@ -1469,13 +1490,13 @@
         }
 
         const rides = snapshot.val() || {};
-        let foundPending = null;
+        let pendingRidesList = [];
         let activeForMe = null;
 
         Object.keys(rides).forEach(id => {
           const r = rides[id];
-          if (r.status === 'pendente' && !foundPending) {
-            foundPending = { id, ...r };
+          if (r.status === 'pendente') {
+            pendingRidesList.push({ id, ...r });
           }
           if ((r.status === 'aceita' || r.status === 'em_andamento') && r.motoristaPlaca === currentUser.plate) {
             activeForMe = { id, ...r };
@@ -1488,7 +1509,7 @@
           pendingRide = activeForMe;
 
           emptyBox.style.display = 'none';
-          reqCard.style.display = 'none';
+          reqContainer.style.display = 'none';
 
           const valFormatado = Math.round(activeForMe.valor || 0);
 
@@ -1506,67 +1527,47 @@
             desenharRotaDinamicaMotorista(driverPos, [activeForMe.destinoLat, activeForMe.destinoLng], true);
           }
 
-        } else if (foundPending && !activeRideId) {
-          pendingRide = foundPending;
+        } else if (pendingRidesList.length > 0 && !activeRideId) {
           emptyBox.style.display = 'none';
-          reqCard.style.display = 'block';
           pickupCard.style.display = 'none';
           activeCard.style.display = 'none';
+          reqContainer.style.display = 'block';
 
-          const valFormatado = Math.round(foundPending.valor || 0);
+          reqList.innerHTML = '';
+          pendingRidesList.forEach(ride => {
+            const valFormatado = Math.round(ride.valor || 0);
+            const distStr = ride.distancia ? `${ride.distancia.toFixed(1)} km` : '';
 
-          document.getElementById('driver-ride-price').innerText = `R$ ${valFormatado},00`;
-          document.getElementById('driver-passenger-info').innerHTML = `<b>Passageiro:</b> ${foundPending.passageiroNome} (${foundPending.passageiroTel || 'Sem tel'})`;
+            const item = document.createElement('div');
+            item.className = 'ride-item-card';
+            item.innerHTML = `
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <strong>${ride.passageiroNome}</strong>
+                <span class="price-tag" style="font-size: 20px;">R$ ${valFormatado},00</span>
+              </div>
+              <div style="font-size: 13px; color: #555; margin-bottom: 8px;">
+                📞 ${ride.passageiroTel || 'Sem telefone'}<br>
+                📏 Distância: ${distStr}
+              </div>
+              <button class="btn-primary" style="margin-top: 0; padding: 10px;" onclick="confirmarAceiteCorridaEspecifica('${ride.id}')">ACEITAR CORRIDA</button>
+            `;
+            reqList.appendChild(item);
+          });
 
-          if (lastNotifiedRideId !== foundPending.id) {
-            lastNotifiedRideId = foundPending.id;
+          if (lastNotifiedRideId !== pendingRidesList[0].id) {
+            lastNotifiedRideId = pendingRidesList[0].id;
             alertarMotoristaComSom();
           }
-
-          mostrarSolicitacaoNoMapaMotorista(foundPending);
 
         } else if (!activeRideId) {
           pendingRide = null;
           emptyBox.style.display = 'block';
-          reqCard.style.display = 'none';
+          reqContainer.style.display = 'none';
           pickupCard.style.display = 'none';
           activeCard.style.display = 'none';
           limparRotaMotorista();
         }
       });
-    }
-
-    async function mostrarSolicitacaoNoMapaMotorista(ride) {
-      if (!driverMap) return;
-      const orig = [ride.origemLat, ride.origemLng];
-      const dest = [ride.destinoLat, ride.destinoLng];
-
-      if (dOrigMarker) driverMap.removeLayer(dOrigMarker);
-      if (dDestMarker) driverMap.removeLayer(dDestMarker);
-
-      dOrigMarker = L.marker(orig, { icon: greenIcon }).addTo(driverMap);
-      dDestMarker = L.marker(dest, { icon: redIcon }).addTo(driverMap);
-
-      if (!dRouteLayerGroup) {
-        dRouteLayerGroup = L.layerGroup().addTo(driverMap);
-      }
-      dRouteLayerGroup.clearLayers();
-
-      let coords = [orig, dest];
-      try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${orig[1]},${orig[0]};${dest[1]},${dest[0]}?overview=full&geometries=geojson`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.routes && data.routes.length > 0) {
-          coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-        }
-      } catch (e) {
-        console.warn("OSRM falhou no motorista, usando linha padrão");
-      }
-
-      const line = L.polyline(coords, { color: '#ffc107', weight: 6, opacity: 0.85, dashArray: '10, 10' });
-      dRouteLayerGroup.addLayer(line);
-      driverMap.fitBounds(line.getBounds(), { padding: [50, 50] });
     }
 
     async function desenharRotaDinamicaMotorista(posAtualMotorista, pontoAlvo, isDestinoFinal) {
@@ -1592,7 +1593,6 @@
         console.warn("OSRM falhou na atualização de rota dinâmica");
       }
 
-      // Se for em andamento, cor amarela e limpa o verde anterior. Se for busca, cor verde.
       const corLinha = isDestinoFinal ? '#ffc107' : '#27ae60';
       const line = L.polyline(coords, { color: corLinha, weight: 6, opacity: 0.85, dashArray: '10, 10' });
       dRouteLayerGroup.addLayer(line);
@@ -1604,26 +1604,31 @@
       if (dRouteLayerGroup) { dRouteLayerGroup.clearLayers(); }
     }
 
-    function confirmarAceiteCorrida() {
+    function confirmarAceiteCorridaEspecifica(rideId) {
       if (isDriverBlocked) {
         alert("Sua conta está suspensa pelo administrador.");
         return;
       }
-      if (!pendingRide) return;
-      const rideId = pendingRide.id;
 
-      db.ref('taxisjn_corridas/' + rideId).update({
-        status: 'aceita',
-        motoristaNome: currentUser.name,
-        motoristaPlaca: currentUser.plate
-      }).then(() => {
-        activeRideId = rideId;
-        document.getElementById('driver-request-card').style.display = 'none';
-        document.getElementById('driver-pickup-card').style.display = 'block';
-        desenharRotaDinamicaMotorista(driverPos, [pendingRide.origemLat, pendingRide.origemLng], false);
-      }).catch(err => {
-        console.error("Erro ao aceitar corrida:", err);
-        alert("Erro ao aceitar corrida. Tente novamente.");
+      db.ref('taxisjn_corridas/' + rideId).once('value').then(snap => {
+        const ride = snap.val();
+        if (!ride || ride.status !== 'pendente') {
+          alert("Esta corrida já foi aceita por outro motorista.");
+          return;
+        }
+
+        db.ref('taxisjn_corridas/' + rideId).update({
+          status: 'aceita',
+          motoristaNome: currentUser.name,
+          motoristaPlaca: currentUser.plate
+        }).then(() => {
+          activeRideId = rideId;
+          document.getElementById('driver-requests-container').style.display = 'none';
+          document.getElementById('driver-pickup-card').style.display = 'block';
+        }).catch(err => {
+          console.error("Erro ao aceitar corrida:", err);
+          alert("Erro ao aceitar corrida. Tente novamente.");
+        });
       });
     }
 
