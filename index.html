@@ -1164,6 +1164,7 @@
           }
 
         } else if (ride.status === 'em_andamento') {
+          // 1. APAGA COMPLETAMENTE A LINHA VERDE DO MOTORISTA ATÉ O PASSAGEIRO
           if (passengerDriverLocListenerRef) {
             passengerDriverLocListenerRef.off();
             passengerDriverLocListenerRef = null;
@@ -1171,6 +1172,23 @@
           if (driverRouteToPassengerLine) {
             passengerMap.removeLayer(driverRouteToPassengerLine);
             driverRouteToPassengerLine = null;
+          }
+
+          // 2. EXIBE A ROTA ATÉ O DESTINO E ATUALIZA DINAMICAMENTE CONFORME O MOTORISTA CAMINHA
+          if (ride.destinoLat && ride.destinoLng) {
+            const plateKey = ride.motoristaPlaca ? ride.motoristaPlaca.replace(/\s+/g, '_') : null;
+            if (plateKey) {
+              if (passengerDriverLocListenerRef) passengerDriverLocListenerRef.off();
+              passengerDriverLocListenerRef = db.ref('taxisjn_motoristas_loc/' + plateKey);
+              passengerDriverLocListenerRef.on('value', (locSnap) => {
+                const loc = locSnap.val();
+                if (loc && loc.lat && loc.lng) {
+                  atualizarRotaAteDestinoPassageiro([loc.lat, loc.lng], [ride.destinoLat, ride.destinoLng]);
+                }
+              });
+            } else {
+              desenharRotaAteDestinoPassageiro([ride.origemLat, ride.origemLng], [ride.destinoLat, ride.destinoLng]);
+            }
           }
 
           statusBox.style.display = 'block';
@@ -1188,6 +1206,10 @@
             passengerMap.removeLayer(driverRouteToPassengerLine);
             driverRouteToPassengerLine = null;
           }
+          if (pRouteLine) {
+            passengerMap.removeLayer(pRouteLine);
+            pRouteLine = null;
+          }
 
           statusBox.style.display = 'block';
           statusBox.innerHTML = `
@@ -1197,7 +1219,6 @@
           `;
           
           setTimeout(() => {
-            if (pRouteLine) { passengerMap.removeLayer(pRouteLine); pRouteLine = null; }
             if (pDestMarker) { passengerMap.removeLayer(pDestMarker); pDestMarker = null; }
             destino = null;
 
@@ -1231,6 +1252,38 @@
         passengerMap.removeLayer(driverRouteToPassengerLine);
       }
       driverRouteToPassengerLine = L.polyline(coords, { color: '#27ae60', weight: 5, opacity: 0.9, dashArray: '6, 8' }).addTo(passengerMap);
+    }
+
+    async function desenharRotaAteDestinoPassageiro(posAtual, posDestino) {
+      if (!passengerMap) return;
+      let coords = [posAtual, posDestino];
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${posAtual[1]},${posAtual[0]};${posDestino[1]},${posDestino[0]}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.routes && data.routes.length > 0) {
+          coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        }
+      } catch (e) {}
+
+      if (pRouteLine) passengerMap.removeLayer(pRouteLine);
+      pRouteLine = L.polyline(coords, { color: '#ffc107', weight: 6, opacity: 0.85, dashArray: '10, 10' }).addTo(passengerMap);
+    }
+
+    async function atualizarRotaAteDestinoPassageiro(posMotorista, posDestino) {
+      if (!passengerMap) return;
+      let coords = [posMotorista, posDestino];
+      try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${posMotorista[1]},${posMotorista[0]};${posDestino[1]},${posDestino[0]}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.routes && data.routes.length > 0) {
+          coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        }
+      } catch (e) {}
+
+      if (pRouteLine) passengerMap.removeLayer(pRouteLine);
+      pRouteLine = L.polyline(coords, { color: '#ffc107', weight: 6, opacity: 0.85, dashArray: '10, 10' }).addTo(passengerMap);
     }
 
     function initDriverMapBase() {
@@ -1317,8 +1370,12 @@
             });
           }
 
-          if (pendingRide && (pendingRide.status === 'aceita' || pendingRide.status === 'em_andamento')) {
-            desenharRotaDinamicaMotorista(driverPos, [pendingRide.origemLat, pendingRide.origemLng]);
+          if (pendingRide) {
+            if (pendingRide.status === 'aceita') {
+              desenharRotaDinamicaMotorista(driverPos, [pendingRide.origemLat, pendingRide.origemLng], false);
+            } else if (pendingRide.status === 'em_andamento') {
+              desenharRotaDinamicaMotorista(driverPos, [pendingRide.destinoLat, pendingRide.destinoLng], true);
+            }
           }
         }, (error) => {
           console.warn("GPS motorista erro:", error);
@@ -1440,14 +1497,14 @@
             activeCard.style.display = 'none';
             document.getElementById('driver-pickup-ride-price').innerText = `R$ ${valFormatado},00`;
             document.getElementById('driver-pickup-passenger-info').innerHTML = `<b>Passageiro:</b> ${activeForMe.passageiroNome} (${activeForMe.passageiroTel || 'Sem tel'})`;
+            desenharRotaDinamicaMotorista(driverPos, [activeForMe.origemLat, activeForMe.origemLng], false);
           } else if (activeForMe.status === 'em_andamento') {
             pickupCard.style.display = 'none';
             activeCard.style.display = 'block';
             document.getElementById('driver-active-ride-price').innerText = `R$ ${valFormatado},00`;
             document.getElementById('driver-active-passenger-info').innerHTML = `<b>Passageiro:</b> ${activeForMe.passageiroNome} (${activeForMe.passageiroTel || 'Sem tel'})`;
+            desenharRotaDinamicaMotorista(driverPos, [activeForMe.destinoLat, activeForMe.destinoLng], true);
           }
-
-          desenharRotaDinamicaMotorista(driverPos, [activeForMe.origemLat, activeForMe.origemLng]);
 
         } else if (foundPending && !activeRideId) {
           pendingRide = foundPending;
@@ -1512,20 +1569,20 @@
       driverMap.fitBounds(line.getBounds(), { padding: [50, 50] });
     }
 
-    async function desenharRotaDinamicaMotorista(posAtualMotorista, posPassageiro) {
+    async function desenharRotaDinamicaMotorista(posAtualMotorista, pontoAlvo, isDestinoFinal) {
       if (!driverMap) return;
 
       if (dOrigMarker) driverMap.removeLayer(dOrigMarker);
-      dOrigMarker = L.marker(posPassageiro, { icon: greenIcon }).addTo(driverMap);
+      dOrigMarker = L.marker(pontoAlvo, { icon: isDestinoFinal ? redIcon : greenIcon }).addTo(driverMap);
 
       if (!dRouteLayerGroup) {
         dRouteLayerGroup = L.layerGroup().addTo(driverMap);
       }
       dRouteLayerGroup.clearLayers();
 
-      let coords = [posAtualMotorista, posPassageiro];
+      let coords = [posAtualMotorista, pontoAlvo];
       try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${posAtualMotorista[1]},${posAtualMotorista[0]};${posPassageiro[1]},${posPassageiro[0]}?overview=full&geometries=geojson`;
+        const url = `https://router.project-osrm.org/route/v1/driving/${posAtualMotorista[1]},${posAtualMotorista[0]};${pontoAlvo[1]},${pontoAlvo[0]}?overview=full&geometries=geojson`;
         const res = await fetch(url);
         const data = await res.json();
         if (data.routes && data.routes.length > 0) {
@@ -1535,7 +1592,9 @@
         console.warn("OSRM falhou na atualização de rota dinâmica");
       }
 
-      const line = L.polyline(coords, { color: '#27ae60', weight: 6, opacity: 0.85, dashArray: '10, 10' });
+      // Se for em andamento, cor amarela e limpa o verde anterior. Se for busca, cor verde.
+      const corLinha = isDestinoFinal ? '#ffc107' : '#27ae60';
+      const line = L.polyline(coords, { color: corLinha, weight: 6, opacity: 0.85, dashArray: '10, 10' });
       dRouteLayerGroup.addLayer(line);
     }
 
@@ -1561,7 +1620,7 @@
         activeRideId = rideId;
         document.getElementById('driver-request-card').style.display = 'none';
         document.getElementById('driver-pickup-card').style.display = 'block';
-        desenharRotaDinamicaMotorista(driverPos, [pendingRide.origemLat, pendingRide.origemLng]);
+        desenharRotaDinamicaMotorista(driverPos, [pendingRide.origemLat, pendingRide.origemLng], false);
       }).catch(err => {
         console.error("Erro ao aceitar corrida:", err);
         alert("Erro ao aceitar corrida. Tente novamente.");
