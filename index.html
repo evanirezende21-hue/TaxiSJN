@@ -431,6 +431,7 @@
 
     let driverMarkersOnPassengerMap = {};
     let passengerMarkersOnDriverMap = {};
+    let pendingRideRoutesGroup = null; // Armazena as rotas pendentes no mapa do motorista
 
     let origem = [-21.5431, -43.0108]; 
     let driverPos = [-21.5431, -43.0108]; 
@@ -1479,7 +1480,7 @@
       });
     }
 
-    function atualizarPainelEListaMotorista(rides) {
+    async function atualizarPainelEListaMotorista(rides) {
       const emptyBox = document.getElementById('driver-empty-box');
       const reqContainer = document.getElementById('driver-requests-container');
       const reqList = document.getElementById('driver-requests-list');
@@ -1515,6 +1516,10 @@
 
         emptyBox.style.display = 'none';
         reqContainer.style.display = 'none';
+        if (pendingRideRoutesGroup) {
+          driverMap.removeLayer(pendingRideRoutesGroup);
+          pendingRideRoutesGroup = null;
+        }
 
         const valFormatado = Math.round(activeForMe.valor || 0);
 
@@ -1533,7 +1538,6 @@
         }
 
       } else {
-        // Garantia de reset das variáveis de corrida ativa
         activeRideId = null;
         pendingRide = null;
         currentRideStatus = null;
@@ -1545,9 +1549,36 @@
           reqContainer.style.display = 'block';
 
           reqList.innerHTML = '';
-          pendingRidesList.forEach(ride => {
+          
+          if (!pendingRideRoutesGroup) {
+            pendingRideRoutesGroup = L.layerGroup().addTo(driverMap);
+          }
+          pendingRideRoutesGroup.clearLayers();
+
+          for (const ride of pendingRidesList) {
             const valFormatado = Math.round(ride.valor || 0);
             const distStr = ride.distancia ? `${ride.distancia.toFixed(1)} km` : '';
+
+            // Adiciona marcadores de origem (verde) e destino (vermelho) da corrida pendente
+            L.marker([ride.origemLat, ride.origemLng], { icon: greenIcon }).addTo(pendingRideRoutesGroup)
+              .bindTooltip(`Origem: ${ride.passageiroNome}`, { direction: 'top', className: 'map-name-tooltip' });
+            
+            L.marker([ride.destinoLat, ride.destinoLng], { icon: redIcon }).addTo(pendingRideRoutesGroup)
+              .bindTooltip(`Destino: ${ride.passageiroNome}`, { direction: 'top', className: 'map-name-tooltip' });
+
+            // Desenha a linha de rota do passageiro no mapa do motorista
+            try {
+              const url = `https://router.project-osrm.org/route/v1/driving/${ride.origemLng},${ride.origemLat};${ride.destinoLng},${ride.destinoLat}?overview=full&geometries=geojson`;
+              const res = await fetch(url);
+              const data = await res.json();
+              if (data.routes && data.routes.length > 0) {
+                const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                L.polyline(coords, { color: '#ffc107', weight: 5, opacity: 0.8, dashArray: '8, 8' }).addTo(pendingRideRoutesGroup);
+              }
+            } catch (e) {
+              // Rota alternativa em linha reta se falhar o OSRM
+              L.polyline([[ride.origemLat, ride.origemLng], [ride.destinoLat, ride.destinoLng]], { color: '#ffc107', weight: 4, opacity: 0.7 }).addTo(pendingRideRoutesGroup);
+            }
 
             const item = document.createElement('div');
             item.className = 'ride-item-card';
@@ -1563,7 +1594,7 @@
               <button class="btn-primary" style="margin-top: 0; padding: 10px;" onclick="confirmarAceiteCorridaEspecifica('${ride.id}')">ACEITAR CORRIDA</button>
             `;
             reqList.appendChild(item);
-          });
+          }
 
           if (lastNotifiedRideId !== pendingRidesList[0].id) {
             lastNotifiedRideId = pendingRidesList[0].id;
@@ -1573,6 +1604,9 @@
         } else {
           emptyBox.style.display = 'block';
           reqContainer.style.display = 'none';
+          if (pendingRideRoutesGroup) {
+            pendingRideRoutesGroup.clearLayers();
+          }
           limparRotaMotorista();
         }
       }
@@ -1580,6 +1614,10 @@
 
     async function desenharRotaDinamicaMotorista(posAtualMotorista, pontoAlvo, isDestinoFinal) {
       if (!driverMap) return;
+
+      if (pendingRideRoutesGroup) {
+        pendingRideRoutesGroup.clearLayers();
+      }
 
       if (dOrigMarker) driverMap.removeLayer(dOrigMarker);
       dOrigMarker = L.marker(pontoAlvo, { icon: isDestinoFinal ? redIcon : greenIcon }).addTo(driverMap);
@@ -1631,6 +1669,9 @@
           motoristaPlaca: currentUser.plate
         }).then(() => {
           activeRideId = rideId;
+          if (pendingRideRoutesGroup) {
+            pendingRideRoutesGroup.clearLayers();
+          }
           document.getElementById('driver-requests-container').style.display = 'none';
           document.getElementById('driver-pickup-card').style.display = 'block';
         }).catch(err => {
@@ -1669,7 +1710,6 @@
           });
         });
 
-        // 1. LIMPEZA TOTAL DOS ESTADOS DE CORRIDA ATIVA
         activeRideId = null;
         pendingRide = null;
         currentRideStatus = null;
@@ -1678,7 +1718,6 @@
         document.getElementById('driver-active-card').style.display = 'none';
         document.getElementById('driver-pickup-card').style.display = 'none';
 
-        // 2. BUSCA AS CORRIDAS PENDENTES ATUALIZADAS E RECONSTRÓI O PAINEL
         db.ref('taxisjn_corridas').once('value').then(snapshot => {
           const rides = snapshot.val() || {};
           atualizarPainelEListaMotorista(rides);
