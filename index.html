@@ -1661,13 +1661,28 @@
           });
         });
 
+        // 1. ZERA AS VARIÁVEIS DE CORRIDA ATIVA DO MOTORISTA
         activeRideId = null;
         pendingRide = null;
         currentRideStatus = null;
         limparRotaMotorista();
 
+        // 2. ESCONDE OS CARDS DE VIAGEM E FORÇA REAVALIAÇÃO DE CORRIDAS PENDENTES
         document.getElementById('driver-active-card').style.display = 'none';
-        document.getElementById('driver-empty-box').style.display = 'block';
+        document.getElementById('driver-pickup-card').style.display = 'none';
+        
+        // 3. EXECUTA NOVAMENTE A VERIFICAÇÃO PARA MOSTRAR A LISTA PENDENTE IMEDIATAMENTE
+        db.ref('taxisjn_corridas').once('value').then(snapshot => {
+          const rides = snapshot.val() || {};
+          let pendingCount = 0;
+          Object.keys(rides).forEach(id => {
+            if (rides[id].status === 'pendente') pendingCount++;
+          });
+          if (pendingCount === 0) {
+            document.getElementById('driver-empty-box').style.display = 'block';
+          }
+        });
+
         alert("Corrida concluída com sucesso! Taxa de R$ 0,50 adicionada ao seu saldo.");
       });
     }
