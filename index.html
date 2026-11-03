@@ -1474,63 +1474,74 @@
 
     function escutarCorridasParaMotorista() {
       db.ref('taxisjn_corridas').on('value', (snapshot) => {
-        const emptyBox = document.getElementById('driver-empty-box');
-        const reqContainer = document.getElementById('driver-requests-container');
-        const reqList = document.getElementById('driver-requests-list');
-        const pickupCard = document.getElementById('driver-pickup-card');
-        const activeCard = document.getElementById('driver-active-card');
+        const rides = snapshot.val() || {};
+        atualizarPainelEListaMotorista(rides);
+      });
+    }
 
-        if (isDriverBlocked) {
-          emptyBox.style.display = 'none';
-          reqContainer.style.display = 'none';
-          pickupCard.style.display = 'none';
+    function atualizarPainelEListaMotorista(rides) {
+      const emptyBox = document.getElementById('driver-empty-box');
+      const reqContainer = document.getElementById('driver-requests-container');
+      const reqList = document.getElementById('driver-requests-list');
+      const pickupCard = document.getElementById('driver-pickup-card');
+      const activeCard = document.getElementById('driver-active-card');
+
+      if (isDriverBlocked) {
+        emptyBox.style.display = 'none';
+        reqContainer.style.display = 'none';
+        pickupCard.style.display = 'none';
+        activeCard.style.display = 'none';
+        limparRotaMotorista();
+        return;
+      }
+
+      let pendingRidesList = [];
+      let activeForMe = null;
+
+      Object.keys(rides).forEach(id => {
+        const r = rides[id];
+        if (r.status === 'pendente') {
+          pendingRidesList.push({ id, ...r });
+        }
+        if ((r.status === 'aceita' || r.status === 'em_andamento') && r.motoristaPlaca === currentUser.plate) {
+          activeForMe = { id, ...r };
+        }
+      });
+
+      if (activeForMe) {
+        activeRideId = activeForMe.id;
+        currentRideStatus = activeForMe.status;
+        pendingRide = activeForMe;
+
+        emptyBox.style.display = 'none';
+        reqContainer.style.display = 'none';
+
+        const valFormatado = Math.round(activeForMe.valor || 0);
+
+        if (activeForMe.status === 'aceita') {
+          pickupCard.style.display = 'block';
           activeCard.style.display = 'none';
-          limparRotaMotorista();
-          return;
+          document.getElementById('driver-pickup-ride-price').innerText = `R$ ${valFormatado},00`;
+          document.getElementById('driver-pickup-passenger-info').innerHTML = `<b>Passageiro:</b> ${activeForMe.passageiroNome} (${activeForMe.passageiroTel || 'Sem tel'})`;
+          desenharRotaDinamicaMotorista(driverPos, [activeForMe.origemLat, activeForMe.origemLng], false);
+        } else if (activeForMe.status === 'em_andamento') {
+          pickupCard.style.display = 'none';
+          activeCard.style.display = 'block';
+          document.getElementById('driver-active-ride-price').innerText = `R$ ${valFormatado},00`;
+          document.getElementById('driver-active-passenger-info').innerHTML = `<b>Passageiro:</b> ${activeForMe.passageiroNome} (${activeForMe.passageiroTel || 'Sem tel'})`;
+          desenharRotaDinamicaMotorista(driverPos, [activeForMe.destinoLat, activeForMe.destinoLng], true);
         }
 
-        const rides = snapshot.val() || {};
-        let pendingRidesList = [];
-        let activeForMe = null;
+      } else {
+        // Garantia de reset das variáveis de corrida ativa
+        activeRideId = null;
+        pendingRide = null;
+        currentRideStatus = null;
+        pickupCard.style.display = 'none';
+        activeCard.style.display = 'none';
 
-        Object.keys(rides).forEach(id => {
-          const r = rides[id];
-          if (r.status === 'pendente') {
-            pendingRidesList.push({ id, ...r });
-          }
-          if ((r.status === 'aceita' || r.status === 'em_andamento') && r.motoristaPlaca === currentUser.plate) {
-            activeForMe = { id, ...r };
-          }
-        });
-
-        if (activeForMe) {
-          activeRideId = activeForMe.id;
-          currentRideStatus = activeForMe.status;
-          pendingRide = activeForMe;
-
+        if (pendingRidesList.length > 0) {
           emptyBox.style.display = 'none';
-          reqContainer.style.display = 'none';
-
-          const valFormatado = Math.round(activeForMe.valor || 0);
-
-          if (activeForMe.status === 'aceita') {
-            pickupCard.style.display = 'block';
-            activeCard.style.display = 'none';
-            document.getElementById('driver-pickup-ride-price').innerText = `R$ ${valFormatado},00`;
-            document.getElementById('driver-pickup-passenger-info').innerHTML = `<b>Passageiro:</b> ${activeForMe.passageiroNome} (${activeForMe.passageiroTel || 'Sem tel'})`;
-            desenharRotaDinamicaMotorista(driverPos, [activeForMe.origemLat, activeForMe.origemLng], false);
-          } else if (activeForMe.status === 'em_andamento') {
-            pickupCard.style.display = 'none';
-            activeCard.style.display = 'block';
-            document.getElementById('driver-active-ride-price').innerText = `R$ ${valFormatado},00`;
-            document.getElementById('driver-active-passenger-info').innerHTML = `<b>Passageiro:</b> ${activeForMe.passageiroNome} (${activeForMe.passageiroTel || 'Sem tel'})`;
-            desenharRotaDinamicaMotorista(driverPos, [activeForMe.destinoLat, activeForMe.destinoLng], true);
-          }
-
-        } else if (pendingRidesList.length > 0 && !activeRideId) {
-          emptyBox.style.display = 'none';
-          pickupCard.style.display = 'none';
-          activeCard.style.display = 'none';
           reqContainer.style.display = 'block';
 
           reqList.innerHTML = '';
@@ -1559,15 +1570,12 @@
             alertarMotoristaComSom();
           }
 
-        } else if (!activeRideId) {
-          pendingRide = null;
+        } else {
           emptyBox.style.display = 'block';
           reqContainer.style.display = 'none';
-          pickupCard.style.display = 'none';
-          activeCard.style.display = 'none';
           limparRotaMotorista();
         }
-      });
+      }
     }
 
     async function desenharRotaDinamicaMotorista(posAtualMotorista, pontoAlvo, isDestinoFinal) {
@@ -1661,26 +1669,19 @@
           });
         });
 
-        // 1. ZERA AS VARIÁVEIS DE CORRIDA ATIVA DO MOTORISTA
+        // 1. LIMPEZA TOTAL DOS ESTADOS DE CORRIDA ATIVA
         activeRideId = null;
         pendingRide = null;
         currentRideStatus = null;
         limparRotaMotorista();
 
-        // 2. ESCONDE OS CARDS DE VIAGEM E FORÇA REAVALIAÇÃO DE CORRIDAS PENDENTES
         document.getElementById('driver-active-card').style.display = 'none';
         document.getElementById('driver-pickup-card').style.display = 'none';
-        
-        // 3. EXECUTA NOVAMENTE A VERIFICAÇÃO PARA MOSTRAR A LISTA PENDENTE IMEDIATAMENTE
+
+        // 2. BUSCA AS CORRIDAS PENDENTES ATUALIZADAS E RECONSTRÓI O PAINEL
         db.ref('taxisjn_corridas').once('value').then(snapshot => {
           const rides = snapshot.val() || {};
-          let pendingCount = 0;
-          Object.keys(rides).forEach(id => {
-            if (rides[id].status === 'pendente') pendingCount++;
-          });
-          if (pendingCount === 0) {
-            document.getElementById('driver-empty-box').style.display = 'block';
-          }
+          atualizarPainelEListaMotorista(rides);
         });
 
         alert("Corrida concluída com sucesso! Taxa de R$ 0,50 adicionada ao seu saldo.");
