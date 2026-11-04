@@ -431,7 +431,7 @@
 
     let driverMarkersOnPassengerMap = {};
     let passengerMarkersOnDriverMap = {};
-    let pendingRideRoutesGroup = null; // Armazena as rotas pendentes no mapa do motorista
+    let pendingRideRoutesGroup = null;
 
     let origem = [-21.5431, -43.0108]; 
     let driverPos = [-21.5431, -43.0108]; 
@@ -1566,17 +1566,16 @@
             L.marker([ride.destinoLat, ride.destinoLng], { icon: redIcon }).addTo(pendingRideRoutesGroup)
               .bindTooltip(`Destino: ${ride.passageiroNome}`, { direction: 'top', className: 'map-name-tooltip' });
 
-            // Desenha a linha de rota do passageiro no mapa do motorista
+            // Desenha a linha de rota do passageiro no mapa do motorista imediatamente
             try {
               const url = `https://router.project-osrm.org/route/v1/driving/${ride.origemLng},${ride.origemLat};${ride.destinoLng},${ride.destinoLat}?overview=full&geometries=geojson`;
               const res = await fetch(url);
               const data = await res.json();
               if (data.routes && data.routes.length > 0) {
                 const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-                L.polyline(coords, { color: '#ffc107', weight: 5, opacity: 0.8, dashArray: '8, 8' }).addTo(pendingRideRoutesGroup);
+                L.polyline(coords, { color: '#ffc107', weight: 5, opacity: 0.85, dashArray: '8, 8' }).addTo(pendingRideRoutesGroup);
               }
             } catch (e) {
-              // Rota alternativa em linha reta se falhar o OSRM
               L.polyline([[ride.origemLat, ride.origemLng], [ride.destinoLat, ride.destinoLng]], { color: '#ffc107', weight: 4, opacity: 0.7 }).addTo(pendingRideRoutesGroup);
             }
 
